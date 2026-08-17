@@ -1,0 +1,6 @@
+{
+  "name": "Meridian Commons",
+  "description": "Grand super-regional American retail & dining destination management simulation inspired by premier flagship gallerias and open-air lifestyle villages.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
