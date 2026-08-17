@@ -23,7 +23,27 @@ export type ArchitectToolMode =
   | 'build_wall'
   | 'place_amenity'
   | 'place_escalator'
+  | 'place_entrance'
   | 'demolish';
+
+export interface MallEntrance {
+  id: string;
+  name: string;
+  x: number; // grid x at the concourse threshold
+  y: number; // grid y at the concourse threshold
+  side: 'north' | 'south' | 'east' | 'west';
+  mode: 'both' | 'entrance' | 'exit';
+  visitorsEntered: number;
+  visitorsExited: number;
+}
+
+export interface BlueprintDragPreview {
+  startX: number;
+  startY: number;
+  endX: number;
+  endY: number;
+  kind: 'hallway' | 'lot';
+}
 
 export type HallwayStyle =
   | 'marble_carrara'
@@ -227,6 +247,10 @@ export interface StoreInstance {
   interior: StoreInterior;
   placedAtWeek: number;
   customStaffHired: number;
+  priceStrategy: 'value' | 'market' | 'premium';
+  facadeStyle: 'gallery' | 'warm' | 'neon';
+  inventoryLevel: number;
+  promotionTicks: number;
   // Deep Simulation Dynamic State
   cinemaState?: CinemaShowtimeState;
   specialEvent?: StoreSimulationEvent;
@@ -271,6 +295,7 @@ export interface ShopperAgent {
   walkCycle: number;
   targetStoreId: string | null;
   targetAmenityId: string | null;
+  targetEntranceId: string | null;
   assignedTableId: string | null;
   assignedSeatId: string | null;
   timer: number;

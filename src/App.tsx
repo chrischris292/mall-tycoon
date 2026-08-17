@@ -56,7 +56,7 @@ export const App: React.FC = () => {
     >
       {/* Central App Card Container */}
       <div
-        className={`w-full max-w-[1600px] rounded-2xl overflow-hidden transition-all duration-200 border flex flex-col ${
+        className={`w-full max-w-[1920px] rounded-2xl overflow-hidden transition-all duration-200 border flex flex-col ${
           isLight
             ? 'bg-white border-slate-200 shadow-xl'
             : isCyber
@@ -65,20 +65,20 @@ export const App: React.FC = () => {
         }`}
       >
         {/* Top Header with Theme Switcher, Speed & Audio Controls */}
-        <TopHeader
+        {!engine.blueprintMode && <TopHeader
           engine={engine}
           theme={theme}
           onThemeChange={setTheme}
           onSpeedChange={handleSpeedChange}
           onPauseToggle={handlePauseToggle}
           onSoundToggle={handleSoundToggle}
-        />
+        />}
 
         {/* Global Statistics & Metric Tiles HUD */}
-        <StatsBar stats={engine.stats} leasedCount={engine.stores.length} theme={theme} />
+        {!engine.blueprintMode && <StatsBar stats={engine.stats} leasedCount={engine.stores.length} unitCount={engine.units.length} theme={theme} />}
 
         {/* Main Interactive Simulation Body */}
-        <div className="grid grid-cols-1 xl:grid-cols-[1fr_390px] min-h-[640px]">
+        <div className={`grid grid-cols-1 min-h-[760px] ${engine.blueprintMode ? '' : 'xl:grid-cols-[minmax(0,1fr)_420px]'}`}>
           {/* 2D Mall Simulation Viewport */}
           <main
             className={`flex flex-col justify-center border-b xl:border-b-0 xl:border-r ${
@@ -93,7 +93,7 @@ export const App: React.FC = () => {
           </main>
 
           {/* Interactive Management Sidebar */}
-          <Sidebar engine={engine} theme={theme} onUpdate={() => setTick((t) => t + 1)} />
+          {!engine.blueprintMode && <Sidebar engine={engine} theme={theme} onUpdate={() => setTick((t) => t + 1)} />}
         </div>
       </div>
     </div>

@@ -1,1 +1,9 @@
 @import "tailwindcss";
+
+.mall-viewport { height: clamp(700px, 76vh, 980px); }
+
+@media (max-width: 640px) {
+  .mall-viewport { height: 560px; }
+  button, input { -webkit-tap-highlight-color: transparent; }
+  * { scrollbar-width: thin; }
+}

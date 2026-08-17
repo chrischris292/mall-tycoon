@@ -98,6 +98,10 @@ export function createStoreInstance(tenant: TenantDefinition, unit: MallUnit): S
     interior,
     placedAtWeek: 1,
     customStaffHired: 0,
+    priceStrategy: 'market',
+    facadeStyle: tenant.cat === 'Entertainment' ? 'neon' : tenant.cat === 'Food' ? 'warm' : 'gallery',
+    inventoryLevel: 100,
+    promotionTicks: 0,
     cinemaState,
     specialEvent
   };

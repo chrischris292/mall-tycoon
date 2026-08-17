@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Store,
   Building2,
@@ -20,7 +20,12 @@ import {
   Paintbrush,
   ArrowUpDown,
   Compass,
-  Sparkle
+  Sparkle,
+  PackageOpen,
+  Megaphone,
+  Palette,
+  Minus,
+  Plus
 } from 'lucide-react';
 import { MallSimulationEngine } from '../game/engine';
 import { TENANTS_CATALOG, AMENITIES_CATALOG } from '../game/constants';
@@ -60,7 +65,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ engine, theme, onUpdate }) => 
 
   const inspected = engine.inspectedStore;
   const inspectedAmenity = engine.inspectedAmenity;
-  const inspectedUnit = engine.hoveredUnit || (inspected ? inspected.unit : null);
+  const inspectedUnit = engine.selectedUnit || (inspected ? inspected.unit : null);
+
+  // A selected vacant lot must remain selected while the pointer travels to the sidebar.
+  useEffect(() => {
+    if (engine.selectedUnit && !engine.stores.some((s) => s.unit === engine.selectedUnit)) {
+      const unit = engine.selectedUnit;
+      setEditLotName(unit[0]);
+      setEditLotW(unit[3]);
+      setEditLotH(unit[4]);
+      setActiveTab('inspector');
+    }
+  }, [engine.selectedUnit]);
 
   const handleSelectTenant = (t: TenantDefinition) => {
     initAudio();
@@ -172,7 +188,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ engine, theme, onUpdate }) => 
 
   return (
     <aside
-      className={`w-full flex flex-col h-full max-h-[740px] overflow-hidden transition-colors ${
+      className={`w-full flex flex-col h-full min-h-[700px] max-h-[calc(100vh-3rem)] overflow-hidden transition-colors ${
         isLight
           ? 'bg-slate-50/80 text-slate-800'
           : isCyber
@@ -962,6 +978,46 @@ export const Sidebar: React.FC<SidebarProps> = ({ engine, theme, onUpdate }) => 
                     </div>
                     <div className="text-base font-bold text-emerald-400 mt-1">
                       ${Math.round(inspected.totalRevenue).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Store-level decisions: demand, throughput, stock, and identity */}
+                <div className={`p-3.5 rounded-xl border space-y-3 ${isLight ? 'bg-white border-slate-200' : 'bg-slate-900/80 border-slate-800'}`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-cyan-300 tracking-wider">STORE MANAGEMENT</span>
+                    <span className="text-[10px] text-emerald-300">{Math.round(inspected.customerSatisfaction)}% satisfaction</span>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-400 mb-1.5">Pricing strategy</div>
+                    <div className="grid grid-cols-3 gap-1">
+                      {(['value', 'market', 'premium'] as const).map((strategy) => (
+                        <button key={strategy} onClick={() => { engine.setStorePricing(strategy); onUpdate(); }} className={`h-9 rounded-lg text-[10px] font-bold capitalize ${inspected.priceStrategy === strategy ? 'bg-cyan-500 text-slate-950' : 'bg-slate-950 text-slate-400 border border-slate-800'}`}>{strategy}</button>
+                      ))}
+                    </div>
+                    <div className="mt-1 text-[9px] text-slate-500">Value boosts traffic · Premium raises basket size but lowers demand</div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800">
+                      <div className="flex items-center gap-1 text-[10px] text-slate-400"><Users className="w-3 h-3" /> Service team</div>
+                      <div className="flex items-center justify-between mt-2">
+                        <button onClick={() => { engine.adjustStoreStaff(-1); onUpdate(); }} className="w-8 h-8 grid place-items-center rounded-lg bg-slate-800"><Minus className="w-3 h-3" /></button>
+                        <span className="text-sm font-black">{inspected.staffCount}</span>
+                        <button onClick={() => { engine.adjustStoreStaff(1); onUpdate(); }} className="w-8 h-8 grid place-items-center rounded-lg bg-cyan-600 text-white"><Plus className="w-3 h-3" /></button>
+                      </div>
+                      <div className="text-[9px] text-slate-500 mt-1 text-center">$300 hire · faster queues</div>
+                    </div>
+                    <div className="p-2.5 rounded-lg bg-slate-950/70 border border-slate-800">
+                      <div className="flex justify-between text-[10px] text-slate-400"><span className="flex items-center gap-1"><PackageOpen className="w-3 h-3" /> Stock</span><span>{Math.round(inspected.inventoryLevel)}%</span></div>
+                      <div className="h-1.5 mt-2 rounded-full bg-slate-800 overflow-hidden"><div className={`h-full ${inspected.inventoryLevel < 20 ? 'bg-rose-500' : 'bg-emerald-400'}`} style={{ width: `${inspected.inventoryLevel}%` }} /></div>
+                      <button onClick={() => { engine.restockInspectedStore(); onUpdate(); }} className="w-full h-8 mt-2 rounded-lg bg-emerald-950/70 border border-emerald-800 text-[10px] font-bold text-emerald-300">Restock $240</button>
+                    </div>
+                  </div>
+                  <button onClick={() => { engine.promoteInspectedStore(); onUpdate(); }} className={`w-full h-10 rounded-lg flex items-center justify-center gap-2 text-xs font-bold ${inspected.promotionTicks > 0 ? 'bg-fuchsia-950 border border-fuchsia-700 text-fuchsia-300' : 'bg-fuchsia-600 text-white'}`}><Megaphone className="w-4 h-4" />{inspected.promotionTicks > 0 ? 'Local campaign is live' : 'Launch local campaign · $450'}</button>
+                  <div>
+                    <div className="flex items-center gap-1 text-[10px] text-slate-400 mb-1.5"><Palette className="w-3 h-3" /> Storefront concept · $325</div>
+                    <div className="grid grid-cols-3 gap-1">
+                      {(['gallery', 'warm', 'neon'] as const).map((style) => <button key={style} onClick={() => { engine.renovateStoreFacade(style); onUpdate(); }} className={`h-9 rounded-lg capitalize text-[10px] font-bold ${inspected.facadeStyle === style ? 'bg-amber-400 text-slate-950' : 'bg-slate-950 text-slate-400 border border-slate-800'}`}>{style}</button>)}
                     </div>
                   </div>
                 </div>

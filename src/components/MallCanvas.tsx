@@ -14,9 +14,12 @@ import {
   Trash2,
   Paintbrush,
   Layers,
-  ArrowUpDown
+  ArrowUpDown,
+  PencilRuler,
+  DoorOpen
 } from 'lucide-react';
 import { ArchitectToolMode } from '../game/types';
+import { BlueprintDock } from './BlueprintDock';
 
 interface MallCanvasProps {
   engine: MallSimulationEngine;
@@ -35,6 +38,11 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null);
   const hasDraggedRef = useRef(false);
+  const [buildDrag, setBuildDrag] = useState<null | {
+    startTileX: number; startTileY: number; endTileX: number; endTileY: number;
+    startClientX: number; startClientY: number; endClientX: number; endClientY: number;
+  }>(null);
+  const [showBuildTools, setShowBuildTools] = useState(false);
 
   // Keep refs in sync for animation loop
   const zoomRef = useRef(zoom);
@@ -75,6 +83,7 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
           engine.customHallways,
           engine.customWalls,
           engine.escalators,
+          engine.entrances,
           engine.shoppers,
           engine.floatingFx,
           engine.selectedTenant,
@@ -86,7 +95,9 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
           engine.hoveredUnit,
           engine.hoveredTile,
           engine.inspectedStore,
-          engine.inspectedAmenity
+          engine.inspectedAmenity,
+          engine.blueprintMode,
+          engine.design?.templateId ?? 'showcase'
         );
       }
 
@@ -168,8 +179,17 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
   };
 
   // Mouse drag to pan
-  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 && e.button !== 1) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    if (engine.blueprintMode && e.button === 0 && (engine.architectMode === 'paint_hallway' || engine.architectMode === 'zone')) {
+      const world = getCanvasWorldCoords(e.clientX, e.clientY);
+      const tileX = Math.floor(world.x / TILE_SIZE);
+      const tileY = Math.floor(world.y / TILE_SIZE);
+      hasDraggedRef.current = true;
+      setBuildDrag({ startTileX: tileX, startTileY: tileY, endTileX: tileX, endTileY: tileY, startClientX: e.clientX, startClientY: e.clientY, endClientX: e.clientX, endClientY: e.clientY });
+      return;
+    }
     setIsDragging(true);
     hasDraggedRef.current = false;
     dragStartRef.current = {
@@ -180,7 +200,11 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
     };
   };
 
-  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+  const handleMouseMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (buildDrag) {
+      const world = getCanvasWorldCoords(e.clientX, e.clientY);
+      setBuildDrag((drag) => drag ? { ...drag, endTileX: Math.floor(world.x / TILE_SIZE), endTileY: Math.floor(world.y / TILE_SIZE), endClientX: e.clientX, endClientY: e.clientY } : null);
+    }
     if (isDragging && dragStartRef.current) {
       const dx = e.clientX - dragStartRef.current.x;
       const dy = e.clientY - dragStartRef.current.y;
@@ -203,6 +227,16 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
   };
 
   const handleMouseUp = () => {
+    if (buildDrag) {
+      if (engine.architectMode === 'paint_hallway') {
+        engine.paintHallwayRect(buildDrag.startTileX, buildDrag.startTileY, buildDrag.endTileX, buildDrag.endTileY, engine.activeHallwayStyle);
+      } else if (engine.architectMode === 'zone') {
+        engine.createLotFromRect(buildDrag.startTileX, buildDrag.startTileY, buildDrag.endTileX, buildDrag.endTileY);
+      }
+      setBuildDrag(null);
+      onStoreSelected();
+      return;
+    }
     setIsDragging(false);
     dragStartRef.current = null;
   };
@@ -210,6 +244,7 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
   const handleMouseLeave = () => {
     setIsDragging(false);
     dragStartRef.current = null;
+    setBuildDrag(null);
     engine.hoveredUnit = null;
     engine.hoveredTile = null;
   };
@@ -247,6 +282,12 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
     // Mode 4: ZONE CUSTOM LOT
     if (engine.architectMode === 'zone') {
       engine.createCustomLot(tileX, tileY, engine.customLotConfig.w, engine.customLotConfig.h, engine.customLotConfig.name);
+      onStoreSelected();
+      return;
+    }
+
+    if (engine.architectMode === 'place_entrance') {
+      engine.placeEntranceAt(tileX, tileY);
       onStoreSelected();
       return;
     }
@@ -295,11 +336,13 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
           );
         }
       } else if (existingStore) {
+        engine.selectedUnit = clickedUnit;
         engine.inspectedStore = existingStore;
         engine.inspectedAmenity = null;
         playBeep(640, 'sine', 0.08, 0.06);
         onStoreSelected();
       } else {
+        engine.selectedUnit = clickedUnit;
         engine.inspectedStore = null;
         engine.inspectedAmenity = null;
         playBeep(480, 'sine', 0.05, 0.04);
@@ -312,6 +355,7 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
       }
     } else {
       if (engine.inspectedStore || engine.inspectedAmenity) {
+        engine.selectedUnit = null;
         engine.inspectedStore = null;
         engine.inspectedAmenity = null;
         onStoreSelected();
@@ -343,10 +387,17 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
 
   return (
     <div className="flex flex-col items-center w-full p-2 sm:p-3 lg:p-4">
+      {engine.blueprintMode && <BlueprintDock engine={engine} onUpdate={onStoreSelected} />}
       {/* Architect Mode Quick Switcher & Wing Jumps */}
-      <div className="w-full flex flex-wrap items-center justify-between gap-2 mb-2.5 text-xs">
+      <div className={`w-full flex flex-wrap items-center justify-between gap-2 mb-2.5 text-xs ${engine.blueprintMode ? 'hidden' : ''}`}>
         {/* Architect Modes */}
         <div className="flex items-center gap-1 bg-slate-900/90 p-1 rounded-xl border border-slate-800 shadow-sm overflow-x-auto">
+          <button
+            onClick={() => { engine.setBlueprintMode(true); onStoreSelected(); }}
+            className="min-h-9 px-3 rounded-lg flex items-center gap-1.5 font-bold bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 whitespace-nowrap"
+          >
+            <PencilRuler className="w-4 h-4" /> Edit Mall
+          </button>
           <button
             onClick={() => setToolMode('select')}
             className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 font-medium transition-all cursor-pointer whitespace-nowrap ${
@@ -357,6 +408,13 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
           >
             <MousePointer className="w-3.5 h-3.5" /> Inspect / Lease
           </button>
+          <button
+            onClick={() => setShowBuildTools((open) => !open)}
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 font-semibold transition-all whitespace-nowrap ${showBuildTools ? 'bg-slate-700 text-white' : 'text-slate-300 hover:bg-slate-800'}`}
+          >
+            <Grid className="w-3.5 h-3.5" /> Build & Decor
+          </button>
+          {showBuildTools && <>
           <button
             onClick={() => setToolMode('paint_hallway')}
             className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 font-medium transition-all cursor-pointer whitespace-nowrap ${
@@ -388,6 +446,16 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
             <ArrowUpDown className="w-3.5 h-3.5" /> Escalator
           </button>
           <button
+            onClick={() => setToolMode('place_entrance')}
+            className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 font-medium transition-all cursor-pointer whitespace-nowrap ${
+              engine.architectMode === 'place_entrance'
+                ? 'bg-cyan-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+            }`}
+          >
+            <DoorOpen className="w-3.5 h-3.5" /> Entrance
+          </button>
+          <button
             onClick={() => setToolMode('zone')}
             className={`px-2.5 py-1.5 rounded-lg flex items-center gap-1 font-medium transition-all cursor-pointer whitespace-nowrap ${
               engine.architectMode === 'zone'
@@ -417,45 +485,46 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
           >
             <Trash2 className="w-3.5 h-3.5" /> Demolish
           </button>
+          </>}
         </div>
 
         {/* Authentic Valley Fair Wing Jumps */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+        <div className="hidden items-center gap-1.5 overflow-x-auto pb-0.5">
           <button
-            onClick={() => jumpToZone(40 * TILE_SIZE, 24 * TILE_SIZE, 1.4)}
+            onClick={() => jumpToZone(38 * TILE_SIZE, 24 * TILE_SIZE, 1.4)}
             className="px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-all whitespace-nowrap cursor-pointer"
           >
-            🏛️ Center Rotunda
+            🏛️ Center Court
           </button>
           <button
-            onClick={() => jumpToZone(40 * TILE_SIZE, 8 * TILE_SIZE, 1.45)}
+            onClick={() => jumpToZone(55 * TILE_SIZE, 14 * TILE_SIZE, 1.45)}
             className="px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-all whitespace-nowrap cursor-pointer"
           >
-            💎 North Luxury
+            💎 Luxury Collection
           </button>
           <button
-            onClick={() => jumpToZone(64 * TILE_SIZE, 8 * TILE_SIZE, 1.45)}
+            onClick={() => jumpToZone(65 * TILE_SIZE, 35 * TILE_SIZE, 1.45)}
             className="px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-all whitespace-nowrap cursor-pointer"
           >
-            🎬 Dining & ICON Cinema
+            🎬 Alamo Cinema
           </button>
           <button
-            onClick={() => jumpToZone(16 * TILE_SIZE, 24 * TILE_SIZE, 1.4)}
+            onClick={() => jumpToZone(10 * TILE_SIZE, 15 * TILE_SIZE, 1.4)}
             className="px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-all whitespace-nowrap cursor-pointer"
           >
-            🏬 West Nordstrom
+            🏬 Nordstrom
           </button>
           <button
-            onClick={() => jumpToZone(64 * TILE_SIZE, 24 * TILE_SIZE, 1.4)}
+            onClick={() => jumpToZone(72 * TILE_SIZE, 23 * TILE_SIZE, 1.4)}
             className="px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-all whitespace-nowrap cursor-pointer"
           >
-            🛍️ East Macy's
+            🛍️ Macy's Women's
           </button>
           <button
-            onClick={() => jumpToZone(40 * TILE_SIZE, 38 * TILE_SIZE, 1.4)}
+            onClick={() => jumpToZone(25 * TILE_SIZE, 37 * TILE_SIZE, 1.4)}
             className="px-2.5 py-1 rounded-lg bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700 text-[11px] font-medium transition-all whitespace-nowrap cursor-pointer"
           >
-            🕹️ South Entertainment
+            🏠 Macy's Men's & Home
           </button>
           <button
             onClick={resetFitAll}
@@ -470,15 +539,16 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
       <div
         ref={containerRef}
         onWheel={handleWheel}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onMouseLeave={handleMouseLeave}
+        onPointerDown={handleMouseDown}
+        onPointerMove={handleMouseMove}
+        onPointerUp={handleMouseUp}
+        onPointerCancel={handleMouseLeave}
+        onPointerLeave={handleMouseLeave}
         onClick={handleClick}
-        className={`relative w-full rounded-2xl overflow-hidden shadow-2xl border border-slate-800 bg-[#0a0f1d] select-none ${
+        className={`mall-viewport relative w-full rounded-2xl overflow-hidden shadow-2xl border border-slate-800 bg-[#0a0f1d] select-none ${
           isDragging ? 'cursor-grabbing' : 'cursor-crosshair'
         }`}
-        style={{ height: '620px' }}
+        style={{ touchAction: 'none' }}
       >
         {/* Transformed World Canvas */}
         <div
@@ -501,10 +571,23 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
           />
         </div>
 
+        {buildDrag && (() => {
+          const rect = containerRef.current?.getBoundingClientRect();
+          const left = Math.min(buildDrag.startClientX, buildDrag.endClientX) - (rect?.left || 0);
+          const top = Math.min(buildDrag.startClientY, buildDrag.endClientY) - (rect?.top || 0);
+          const width = Math.max(12, Math.abs(buildDrag.endClientX - buildDrag.startClientX));
+          const height = Math.max(12, Math.abs(buildDrag.endClientY - buildDrag.startClientY));
+          return <div className={`absolute pointer-events-none rounded-lg border-2 ${engine.architectMode === 'zone' ? 'border-teal-300 bg-teal-400/25' : 'border-amber-300 bg-amber-400/30'}`} style={{ left, top, width, height }}>
+            <span className="absolute -top-7 left-0 px-2 py-1 rounded-md bg-slate-950 text-[10px] font-bold text-white whitespace-nowrap">
+              {Math.abs(buildDrag.endTileX - buildDrag.startTileX) + 1} × {Math.abs(buildDrag.endTileY - buildDrag.startTileY) + 1} tiles
+            </span>
+          </div>;
+        })()}
+
         {/* Top-Left Live Status Badge */}
         <div className="absolute top-3 left-3 pointer-events-none flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-950/85 backdrop-blur-md border border-white/10 text-xs font-mono text-slate-200 shadow-xl">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span className="font-semibold">Westfield Valley Fair</span>
+          <span className="font-semibold">{engine.design?.name ?? 'My Mall'}</span>
           <span className="text-slate-500">|</span>
           <span className="text-cyan-400 font-bold">{Math.round(zoom * 100)}%</span>
         </div>
@@ -535,7 +618,7 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
         </div>
 
         {/* Interactive Minimap Radar (Bottom-Right) */}
-        <div className="absolute bottom-3 right-3 w-52 h-32 rounded-xl overflow-hidden border border-cyan-500/30 bg-slate-950/90 backdrop-blur-md shadow-2xl pointer-events-none">
+        <div className="hidden sm:block absolute bottom-3 right-3 w-52 h-32 rounded-xl overflow-hidden border border-cyan-500/30 bg-slate-950/90 backdrop-blur-md shadow-2xl pointer-events-none">
           <canvas
             ref={minimapCanvasRef}
             width={208}
@@ -543,19 +626,19 @@ export const MallCanvas: React.FC<MallCanvasProps> = ({ engine, onStoreSelected 
             className="w-full h-full block"
           />
           <div className="absolute bottom-1 left-2 text-[9px] font-mono text-cyan-400/80 font-bold">
-            WESTFIELD RADAR
+            MALL OVERVIEW
           </div>
         </div>
 
         {/* Drag Helper Tooltip */}
-        <div className="absolute bottom-3 left-3 pointer-events-none flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/75 backdrop-blur-md border border-white/10 text-[10px] font-mono text-slate-400">
+        <div className="hidden sm:flex absolute bottom-3 left-3 pointer-events-none items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/75 backdrop-blur-md border border-white/10 text-[10px] font-mono text-slate-400">
           <Move className="w-3 h-3 text-cyan-400" />
           <span>Click & Drag to Pan · Scroll to Zoom · Click Map to Build</span>
         </div>
       </div>
 
       {/* Context info bar below canvas */}
-      <div className="w-full mt-2.5 px-4 py-2.5 rounded-xl bg-slate-900/90 backdrop-blur-sm border border-slate-800 text-xs text-slate-300 flex flex-wrap items-center justify-between gap-2 shadow-sm">
+      <div className={`w-full mt-2.5 px-4 py-2.5 rounded-xl bg-slate-900/90 backdrop-blur-sm border border-slate-800 text-xs text-slate-300 flex-wrap items-center justify-between gap-2 shadow-sm ${engine.blueprintMode ? 'hidden' : 'flex'}`}>
         <div className="flex items-center gap-2">
           {engine.architectMode === 'paint_hallway' ? (
             <span className="flex items-center gap-1.5 text-amber-300 font-medium">
@@ -633,16 +716,19 @@ function drawMinimap(
 
   // Master building footprint silhouette on 80x48
   mctx.fillStyle = '#1e293b';
-  mctx.fillRect(32.5 * TILE_SIZE * scaleX, 2.0 * TILE_SIZE * scaleY, 15.0 * TILE_SIZE * scaleX, 16.5 * TILE_SIZE * scaleY); // North
-  mctx.fillRect(2.0 * TILE_SIZE * scaleX, 18.0 * TILE_SIZE * scaleY, 30.5 * TILE_SIZE * scaleX, 12.0 * TILE_SIZE * scaleY); // West
-  mctx.fillRect(47.5 * TILE_SIZE * scaleX, 18.0 * TILE_SIZE * scaleY, 30.5 * TILE_SIZE * scaleX, 12.0 * TILE_SIZE * scaleY); // East
-  mctx.fillRect(48.0 * TILE_SIZE * scaleX, 2.0 * TILE_SIZE * scaleY, 30.0 * TILE_SIZE * scaleX, 16.5 * TILE_SIZE * scaleY); // Dining & Cinema
-  mctx.fillRect(31.0 * TILE_SIZE * scaleX, 29.5 * TILE_SIZE * scaleY, 18.0 * TILE_SIZE * scaleX, 17.0 * TILE_SIZE * scaleY); // South
+  mctx.beginPath();
+  [[3,8],[16,8],[16,14],[31,14],[31,4],[48,4],[48,2],[70,2],[70,13],[78,16],[78,30],[72,30],[72,42],[44,42],[44,40],[31,40],[31,44],[18,44],[18,31],[14,31],[14,29],[3,29]].forEach(([x,y], i) => {
+    const px = x * TILE_SIZE * scaleX;
+    const py = y * TILE_SIZE * scaleY;
+    if (i === 0) mctx.moveTo(px, py); else mctx.lineTo(px, py);
+  });
+  mctx.closePath();
+  mctx.fill();
 
   // Center Court Fountain Dot
   mctx.fillStyle = '#0284c7';
   mctx.beginPath();
-  mctx.arc(40.0 * TILE_SIZE * scaleX, 24.0 * TILE_SIZE * scaleY, 4, 0, Math.PI * 2);
+  mctx.arc(38.5 * TILE_SIZE * scaleX, 24.0 * TILE_SIZE * scaleY, 4, 0, Math.PI * 2);
   mctx.fill();
 
   // Draw custom hallways

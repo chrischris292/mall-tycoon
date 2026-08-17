@@ -10,7 +10,8 @@ import {
   CustomHallwayTile,
   CustomWallTile,
   EscalatorInstance,
-  HallwayStyle
+  HallwayStyle,
+  MallEntrance
 } from './types';
 import { TILE_SIZE, CANVAS_WIDTH, CANVAS_HEIGHT, ENTRANCES } from './constants';
 
@@ -28,6 +29,7 @@ export class MallRenderer {
     customHallways: CustomHallwayTile[],
     customWalls: CustomWallTile[],
     escalators: EscalatorInstance[],
+    entrances: MallEntrance[],
     shoppers: ShopperAgent[],
     floatingFx: FloatingEffect[],
     selectedTenant: TenantDefinition | null,
@@ -39,7 +41,9 @@ export class MallRenderer {
     hoveredUnit: MallUnit | null,
     hoveredTile: { x: number; y: number } | null,
     inspectedStore: StoreInstance | null,
-    inspectedAmenity: MallAmenityInstance | null
+    inspectedAmenity: MallAmenityInstance | null,
+    blueprintMode: boolean,
+    templateId: string
   ) {
     renderMallCanvas(
       this.ctx,
@@ -49,6 +53,7 @@ export class MallRenderer {
       customHallways,
       customWalls,
       escalators,
+      entrances,
       shoppers,
       floatingFx,
       hoveredUnit,
@@ -60,7 +65,9 @@ export class MallRenderer {
       activeWallType,
       customLotConfig,
       inspectedStore,
-      inspectedAmenity
+      inspectedAmenity,
+      blueprintMode,
+      templateId
     );
   }
 }
@@ -73,6 +80,7 @@ export function renderMallCanvas(
   customHallways: CustomHallwayTile[],
   customWalls: CustomWallTile[],
   escalators: EscalatorInstance[],
+  entrances: MallEntrance[],
   shoppers: ShopperAgent[],
   floatingFx: FloatingEffect[],
   hoveredUnit: MallUnit | null,
@@ -84,7 +92,9 @@ export function renderMallCanvas(
   activeWallType: 'glass_railing' | 'planter_wall' | 'pillar',
   customLotConfig: { w: number; h: number; cost: number; name: string },
   inspectedStore: StoreInstance | null,
-  inspectedAmenity: MallAmenityInstance | null
+  inspectedAmenity: MallAmenityInstance | null,
+  blueprintMode: boolean,
+  templateId: string
 ) {
   const T = TILE_SIZE;
   const time = performance.now() * 0.002;
@@ -92,14 +102,15 @@ export function renderMallCanvas(
   // 1. Exterior Landscaped Perimeter & Valet Courts
   drawExteriorPerimeter(ctx, T, time);
 
-  // 2. Westfield Valley Fair Authentic Super-Regional Building Footprint & Master Wings
-  drawValleyFairBuildingFootprint(ctx, T, time);
+  if (blueprintMode) drawBlueprintGrid(ctx, T);
+
+  // Every mall, including the showcase, is rendered from authored spaces and corridors.
+  drawGeneratedMallShell(ctx, T, units, customHallways);
 
   // 3. Custom Player-Painted Concourse Hallways
   drawCustomHallways(ctx, T, customHallways);
 
   // 4. Grand Center Court Rotunda, Dancing Fountain & Skylight
-  drawGrandCenterCourtFeatures(ctx, T, time);
 
   // 5. Placed Escalators & Panoramic Glass Elevators
   drawEscalatorsAndElevators(ctx, T, escalators, time);
@@ -111,6 +122,9 @@ export function renderMallCanvas(
 
   // 7. Architectural Walls, Glass Railings, & Planter Partitions
   drawCustomWalls(ctx, T, customWalls);
+
+  // Purpose-built visitor portals anchor the shopper lifecycle to the authored mall.
+  for (const entrance of entrances) drawMallEntrance(ctx, entrance, time);
 
   // 8. Vacant Storefront Lots & Placement Previews
   drawUnitOutlines(ctx, T, units, stores, hoveredUnit, selectedTenant, architectMode);
@@ -150,7 +164,56 @@ export function renderMallCanvas(
   }
 
   // 13. Grand Portals & Architectural Entrances
-  drawGrandPortalsAndSigns(ctx, T);
+}
+
+function drawBlueprintGrid(ctx: CanvasRenderingContext2D, T: number) {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(125,211,252,.13)';
+  ctx.lineWidth = 1;
+  for (let x = T; x < CANVAS_WIDTH; x += T) {
+    ctx.beginPath(); ctx.moveTo(x, T); ctx.lineTo(x, CANVAS_HEIGHT - T); ctx.stroke();
+  }
+  for (let y = T; y < CANVAS_HEIGHT; y += T) {
+    ctx.beginPath(); ctx.moveTo(T, y); ctx.lineTo(CANVAS_WIDTH - T, y); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawGeneratedMallShell(ctx: CanvasRenderingContext2D, T: number, units: MallUnit[], hallways: CustomHallwayTile[]) {
+  if (!units.length && !hallways.length) {
+    ctx.fillStyle = 'rgba(15,23,42,.78)';
+    ctx.fillRect(7 * T, 6 * T, 66 * T, 36 * T);
+    ctx.strokeStyle = '#334155';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(7 * T, 6 * T, 66 * T, 36 * T);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = 'bold 18px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('EMPTY DEVELOPMENT SITE · OPEN BLUEPRINT TO BEGIN', 40 * T, 24 * T);
+    return;
+  }
+
+  // Build the shell as a union of actual spaces and circulation instead of one
+  // bounding rectangle. Wings, courts, and expansion edges therefore read naturally.
+  ctx.save();
+  ctx.fillStyle = '#182233';
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 2;
+  for (const u of units) {
+    const pad = 7;
+    ctx.fillRect(u[1] * T - pad, u[2] * T - pad, u[3] * T + pad * 2, u[4] * T + pad * 2);
+    ctx.strokeRect(u[1] * T - pad, u[2] * T - pad, u[3] * T + pad * 2, u[4] * T + pad * 2);
+  }
+  for (const h of hallways) ctx.fillRect(h.x * T - 4, h.y * T - 4, T + 8, T + 8);
+
+  // Brass threshold markers make open concourse ends read as intentional entrances.
+  const occupied = new Set(hallways.map((h) => `${h.x},${h.y}`));
+  ctx.fillStyle = '#d6a756';
+  for (const h of hallways) {
+    const neighbors = [[1,0],[-1,0],[0,1],[0,-1]].filter(([dx,dy]) => occupied.has(`${h.x + dx},${h.y + dy}`)).length;
+    if (neighbors <= 1) ctx.fillRect(h.x * T + 5, h.y * T + 5, T - 10, T - 10);
+  }
+  ctx.restore();
 }
 
 // -------------------------------------------------------------
@@ -220,6 +283,8 @@ function drawExteriorPerimeter(ctx: CanvasRenderingContext2D, T: number, time: n
 // 2. WESTFIELD VALLEY FAIR BUILDING FOOTPRINT & MASTER WINGS
 // -------------------------------------------------------------
 function drawValleyFairBuildingFootprint(ctx: CanvasRenderingContext2D, T: number, time: number) {
+  drawDirectoryInspiredValleyFair(ctx, T, time);
+  return;
   // Heavy Building Foundation Shadow
   ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
   ctx.fillRect(32.5 * T + 10, 2.0 * T + 10, 15.0 * T, 16.5 * T); // North Luxury
@@ -373,6 +438,128 @@ function drawValleyFairBuildingFootprint(ctx: CanvasRenderingContext2D, T: numbe
     ctx.lineTo(x, 25.5 * T);
     ctx.stroke();
   }
+}
+
+// Current-directory-inspired footprint: the real center reads as a long, bent
+// east/west gallery with offset anchor courts and additions, not a plus sign.
+function drawDirectoryInspiredValleyFair(ctx: CanvasRenderingContext2D, T: number, time: number) {
+  const traceShell = () => {
+    ctx.beginPath();
+    ctx.moveTo(3 * T, 8 * T);
+    ctx.lineTo(16 * T, 8 * T);
+    ctx.lineTo(16 * T, 14 * T);
+    ctx.lineTo(31 * T, 14 * T);
+    ctx.lineTo(31 * T, 4 * T);
+    ctx.lineTo(48 * T, 4 * T);
+    ctx.lineTo(48 * T, 2 * T);
+    ctx.lineTo(70 * T, 2 * T);
+    ctx.lineTo(70 * T, 13 * T);
+    ctx.lineTo(78 * T, 16 * T);
+    ctx.lineTo(78 * T, 30 * T);
+    ctx.lineTo(72 * T, 30 * T);
+    ctx.lineTo(72 * T, 42 * T);
+    ctx.lineTo(44 * T, 42 * T);
+    ctx.lineTo(44 * T, 40 * T);
+    ctx.lineTo(31 * T, 40 * T);
+    ctx.lineTo(31 * T, 44 * T);
+    ctx.lineTo(18 * T, 44 * T);
+    ctx.lineTo(18 * T, 31 * T);
+    ctx.lineTo(14 * T, 31 * T);
+    ctx.lineTo(14 * T, 29 * T);
+    ctx.lineTo(3 * T, 29 * T);
+    ctx.closePath();
+  };
+
+  ctx.save();
+  ctx.translate(10, 10);
+  traceShell();
+  ctx.fillStyle = 'rgba(0,0,0,.55)';
+  ctx.fill();
+  ctx.restore();
+
+  traceShell();
+  ctx.fillStyle = '#1e293b';
+  ctx.fill();
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // Main gallery bends upward through Center Court into the luxury expansion.
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 7 * T;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(14 * T, 23 * T);
+  ctx.bezierCurveTo(25 * T, 23 * T, 29 * T, 24 * T, 38 * T, 24 * T);
+  ctx.bezierCurveTo(48 * T, 24 * T, 52 * T, 20 * T, 57 * T, 20 * T);
+  ctx.lineTo(68 * T, 23 * T);
+  ctx.stroke();
+
+  // Restaurant/luxury loop and south-west Macy's Men's spur.
+  ctx.strokeStyle = '#f8fafc';
+  ctx.lineWidth = 5 * T;
+  ctx.beginPath();
+  ctx.moveTo(35 * T, 20 * T);
+  ctx.bezierCurveTo(34 * T, 14 * T, 40 * T, 9 * T, 49 * T, 10 * T);
+  ctx.bezierCurveTo(57 * T, 11 * T, 61 * T, 14 * T, 61 * T, 18 * T);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(34 * T, 27 * T);
+  ctx.bezierCurveTo(33 * T, 32 * T, 29 * T, 34 * T, 25 * T, 34 * T);
+  ctx.stroke();
+
+  // South-east entertainment / cinema branch integrated into the building.
+  ctx.strokeStyle = '#dbeafe';
+  ctx.lineWidth = 4 * T;
+  ctx.beginPath();
+  ctx.moveTo(55 * T, 25 * T);
+  ctx.quadraticCurveTo(55 * T, 32 * T, 60 * T, 34 * T);
+  ctx.stroke();
+
+  // Center Court oval and skylight, a junction in the long gallery rather than a cross hub.
+  ctx.fillStyle = '#f1f5f9';
+  ctx.beginPath();
+  ctx.ellipse(38.5 * T, 24 * T, 8 * T, 6 * T, -0.08, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(56,189,248,.45)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) {
+    ctx.beginPath();
+    ctx.moveTo(38.5 * T, 24 * T);
+    ctx.lineTo(38.5 * T + Math.cos(a) * 7.5 * T, 24 * T + Math.sin(a) * 5.5 * T);
+    ctx.stroke();
+  }
+
+  // Cinema is a coherent ten-screen anchor with a single lobby edge—not a floating marquee block.
+  ctx.fillStyle = '#171331';
+  ctx.fillRect(57.5 * T, 30.5 * T, 15 * T, 11 * T);
+  ctx.strokeStyle = '#818cf8';
+  ctx.lineWidth = 2;
+  ctx.strokeRect(57.5 * T, 30.5 * T, 15 * T, 11 * T);
+  ctx.fillStyle = '#312e81';
+  ctx.fillRect(57.5 * T, 30.5 * T, 15 * T, 1.2 * T);
+  ctx.fillStyle = '#f8fafc';
+  ctx.font = 'bold 10px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('ALAMO DRAFTHOUSE · 10 SCREENS', 65 * T, 31.3 * T);
+
+  // Warm outdoor restaurant paving along the northern collection.
+  ctx.strokeStyle = '#fed7aa';
+  ctx.lineWidth = 2.6 * T;
+  ctx.beginPath();
+  ctx.moveTo(31 * T, 12 * T);
+  ctx.bezierCurveTo(38 * T, 8 * T, 45 * T, 9 * T, 51 * T, 13 * T);
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(15,23,42,.7)';
+  ctx.font = 'bold 12px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('NORDSTROM', 6 * T, 10 * T);
+  ctx.fillText('BLOOMINGDALE’S', 57.5 * T, 5 * T);
+  ctx.fillText('MACY’S WOMEN’S', 67 * T, 19 * T);
+  ctx.fillText('MACY’S MEN’S & HOME', 19 * T, 34 * T);
 }
 
 // -------------------------------------------------------------
@@ -783,6 +970,39 @@ function drawUnitOutlines(
   }
 }
 
+function drawMallEntrance(ctx: CanvasRenderingContext2D, entrance: MallEntrance, time: number) {
+  const cx = (entrance.x + 0.5) * TILE_SIZE;
+  const cy = (entrance.y + 0.5) * TILE_SIZE;
+  const horizontalDoor = entrance.side === 'north' || entrance.side === 'south';
+  const width = horizontalDoor ? 30 : 12;
+  const height = horizontalDoor ? 12 : 30;
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.shadowColor = '#22d3ee';
+  ctx.shadowBlur = 10 + Math.sin(time * 2) * 2;
+  ctx.fillStyle = '#082f49';
+  ctx.strokeStyle = '#67e8f9';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(-width / 2, -height / 2, width, height, 4);
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = 'rgba(165,243,252,.3)';
+  ctx.fillRect(horizontalDoor ? -9 : -3, horizontalDoor ? -height / 2 + 2 : -9, horizontalDoor ? 7 : 6, horizontalDoor ? height - 4 : 7);
+  ctx.fillRect(horizontalDoor ? 2 : -3, horizontalDoor ? -height / 2 + 2 : 2, horizontalDoor ? 7 : 6, horizontalDoor ? height - 4 : 7);
+  ctx.fillStyle = '#ecfeff';
+  ctx.font = '900 7px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(entrance.mode === 'both' ? '↔' : entrance.mode === 'entrance' ? '→' : '←', 0, 2.5);
+  ctx.fillStyle = '#083344';
+  ctx.fillRect(-25, -height / 2 - 13, 50, 10);
+  ctx.fillStyle = '#a5f3fc';
+  ctx.font = '700 6.5px system-ui, sans-serif';
+  ctx.fillText(entrance.name.toUpperCase().slice(0, 17), 0, -height / 2 - 5.5);
+  ctx.restore();
+}
+
 // -------------------------------------------------------------
 // 9. STORE INTERIORS & DEEP QUEUEING / SEATING MECHANICS
 // -------------------------------------------------------------
@@ -794,41 +1014,56 @@ function drawStoreInterior(ctx: CanvasRenderingContext2D, store: StoreInstance, 
   const pw = gw * T;
   const ph = gh * T;
 
-  // Store Base Flooring
-  if (store.interior.flooringType === 'marble_dark') {
-    ctx.fillStyle = '#0f172a';
-  } else if (store.interior.flooringType === 'tile_checker') {
-    ctx.fillStyle = '#f8fafc';
-  } else if (store.interior.flooringType === 'carpet_retro') {
-    ctx.fillStyle = '#1e1b4b';
-  } else {
-    ctx.fillStyle = '#fef3c7';
-  }
+  // Layered flooring, soft depth, and category-specific atmosphere.
+  ctx.save();
+  ctx.shadowColor = 'rgba(15,23,42,.32)';
+  ctx.shadowBlur = 12;
+  ctx.shadowOffsetY = 4;
+  const floorGradient = ctx.createLinearGradient(px, py, px + pw, py + ph);
+  const floorBase = store.interior.flooringType === 'marble_dark' ? '#111827' : store.interior.flooringType === 'tile_checker' ? '#f8fafc' : store.interior.flooringType === 'carpet_retro' ? '#17143d' : '#f5ead7';
+  floorGradient.addColorStop(0, floorBase);
+  floorGradient.addColorStop(1, store.facadeStyle === 'neon' ? '#20205b' : store.facadeStyle === 'warm' ? '#ead7bd' : '#dfe7ec');
+  ctx.fillStyle = floorGradient;
   ctx.fillRect(px, py, pw, ph);
+  ctx.restore();
+
+  // Subtle merchandising grid makes spaces read as designed interiors, not flat boxes.
+  ctx.strokeStyle = store.facadeStyle === 'neon' ? 'rgba(96,165,250,.12)' : 'rgba(100,116,139,.10)';
+  ctx.lineWidth = 0.6;
+  for (let x = px + 16; x < px + pw; x += 18) { ctx.beginPath(); ctx.moveTo(x, py + 12); ctx.lineTo(x, py + ph); ctx.stroke(); }
 
   // Store Glass Facade / Perimeter Walls
   ctx.strokeStyle = isInspected ? '#38bdf8' : store.tenant.color;
   ctx.lineWidth = isInspected ? 3 : 2;
   ctx.strokeRect(px + 1, py + 1, pw - 2, ph - 2);
 
-  // Store Marquee Banner at Top
-  ctx.fillStyle = store.tenant.color;
-  ctx.fillRect(px + 1, py + 1, pw - 2, 10);
+  // Store marquee with glass, lighting, and a modern high-contrast wordmark.
+  const marquee = ctx.createLinearGradient(px, py, px + pw, py);
+  marquee.addColorStop(0, store.facadeStyle === 'gallery' ? '#0f172a' : store.tenant.color);
+  marquee.addColorStop(0.55, store.tenant.color);
+  marquee.addColorStop(1, store.facadeStyle === 'neon' ? '#312e81' : '#111827');
+  ctx.fillStyle = marquee;
+  ctx.fillRect(px + 1, py + 1, pw - 2, 15);
+  ctx.fillStyle = 'rgba(255,255,255,.22)';
+  ctx.fillRect(px + 1, py + 1, pw - 2, 1.5);
 
   ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 7.5px sans-serif';
+  ctx.font = '800 8.5px system-ui, sans-serif';
   ctx.textAlign = 'left';
-  ctx.fillText(`${store.tenant.icon} ${store.tenant.name.substring(0, Math.floor(pw / 6.5))}`, px + 4, py + 8.5);
+  ctx.fillText(`${store.tenant.icon}  ${store.tenant.name.substring(0, Math.floor(pw / 7))}`, px + 5, py + 11.5);
 
   // Tier Star Badges
   for (let star = 0; star < store.level; star++) {
     ctx.fillStyle = '#facc15';
-    ctx.fillText('★', px + pw - 8 - star * 6, py + 8.5);
+    ctx.fillText('◆', px + pw - 8 - star * 7, py + 11.5);
   }
 
   // 1. Physical Doorway Cutout
-  ctx.fillStyle = '#e2e8f0';
-  ctx.fillRect(doorway.x - 5, doorway.y - 2, 10, 4);
+  ctx.fillStyle = store.facadeStyle === 'neon' ? '#67e8f9' : '#e2e8f0';
+  ctx.shadowColor = store.tenant.color;
+  ctx.shadowBlur = 8;
+  ctx.fillRect(doorway.x - 8, doorway.y - 2.5, 16, 5);
+  ctx.shadowBlur = 0;
 
   // 2. Service Counter & Register
   const c = store.interior.counter;
@@ -1047,6 +1282,17 @@ function drawArchitectModePreview(
     ctx.font = 'bold 8px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('PLACE ESCALATOR', px + pw / 2, py + ph / 2 + 3);
+  } else if (mode === 'place_entrance') {
+    const onHallway = customHallways.some((hallway) => hallway.x === gx && hallway.y === gy);
+    ctx.fillStyle = onHallway ? 'rgba(34,211,238,.38)' : 'rgba(239,68,68,.34)';
+    ctx.fillRect(px, py, T, T);
+    ctx.strokeStyle = onHallway ? '#67e8f9' : '#ef4444';
+    ctx.lineWidth = 2.5;
+    ctx.strokeRect(px + 2, py + 2, T - 4, T - 4);
+    ctx.fillStyle = onHallway ? '#083344' : '#7f1d1d';
+    ctx.font = '900 8px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(onHallway ? 'ENTRANCE' : 'NEEDS HALL', px + T / 2, py + T / 2 + 3);
   } else if (mode === 'demolish') {
     for (const u of units) {
       const ux = u[1] * T;

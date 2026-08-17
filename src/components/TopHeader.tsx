@@ -29,7 +29,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
   return (
     <header
-      className={`px-5 py-3.5 border-b transition-colors flex flex-wrap items-center justify-between gap-4 ${
+      className={`px-3 py-2 sm:px-5 sm:py-3.5 border-b transition-colors flex flex-wrap items-center justify-between gap-2 sm:gap-4 ${
         isLight
           ? 'bg-white border-slate-200 text-slate-900 shadow-sm'
           : isCyber
@@ -38,9 +38,9 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
       }`}
     >
       {/* Brand Identity */}
-      <div className="flex items-center gap-3.5">
+      <div className="flex items-center gap-2.5 sm:gap-3.5">
         <div
-          className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-xl transition-all shadow-md ${
+          className={`w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center font-black text-xl transition-all shadow-md ${
             isLight
               ? 'bg-slate-900 text-white'
               : isCyber
@@ -52,11 +52,11 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </div>
         <div>
           <div className="flex items-center gap-2.5">
-            <h1 className="text-base sm:text-lg font-extrabold tracking-tight m-0">
+            <h1 className="text-sm sm:text-lg font-extrabold tracking-tight m-0">
               MERIDIAN COMMONS
             </h1>
             <span
-              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium ${
+              className={`hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium ${
                 isLight
                   ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                   : 'bg-emerald-950/80 text-emerald-300 border border-emerald-800'
@@ -67,7 +67,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             </span>
           </div>
           <p
-            className={`text-[11px] font-medium tracking-wide m-0 ${
+            className={`hidden sm:block text-[11px] font-medium tracking-wide m-0 ${
               isLight ? 'text-slate-500' : isCyber ? 'text-cyan-400/80 font-mono' : 'text-slate-400'
             }`}
           >

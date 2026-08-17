@@ -1,22 +1,22 @@
 import React from 'react';
 import { MallStats } from '../game/types';
-import { UNITS_LIST } from '../game/constants';
 import { UITheme } from './TopHeader';
 import { DollarSign, Calendar, Users, TrendingUp, Sparkles, Building } from 'lucide-react';
 
 interface StatsBarProps {
   stats: MallStats;
   leasedCount: number;
+  unitCount: number;
   theme: UITheme;
 }
 
-export const StatsBar: React.FC<StatsBarProps> = ({ stats, leasedCount, theme }) => {
+export const StatsBar: React.FC<StatsBarProps> = ({ stats, leasedCount, unitCount, theme }) => {
   const isLight = theme === 'light_executive';
   const isCyber = theme === 'cyber_blueprint';
 
   return (
     <div
-      className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 border-b divide-y sm:divide-y-0 sm:divide-x transition-colors ${
+      className={`grid grid-cols-3 sm:grid-cols-3 lg:grid-cols-6 border-b divide-x transition-colors ${
         isLight
           ? 'bg-slate-50 border-slate-200 divide-slate-200 text-slate-800'
           : isCyber
@@ -25,7 +25,7 @@ export const StatsBar: React.FC<StatsBarProps> = ({ stats, leasedCount, theme })
       }`}
     >
       {/* Cash Reserves */}
-      <div className="px-4 py-3">
+      <div className="px-2 py-2 sm:px-4 sm:py-3">
         <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
           <DollarSign className="w-3.5 h-3.5 text-amber-400" />
           <span>Cash Reserves</span>
@@ -36,7 +36,7 @@ export const StatsBar: React.FC<StatsBarProps> = ({ stats, leasedCount, theme })
       </div>
 
       {/* Operating Period */}
-      <div className="px-4 py-3">
+      <div className="hidden sm:block px-4 py-3">
         <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
           <Calendar className="w-3.5 h-3.5 text-sky-400" />
           <span>Operating Period</span>
@@ -48,7 +48,7 @@ export const StatsBar: React.FC<StatsBarProps> = ({ stats, leasedCount, theme })
       </div>
 
       {/* Active Shoppers on Floor */}
-      <div className="px-4 py-3">
+      <div className="px-2 py-2 sm:px-4 sm:py-3">
         <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
           <Users className="w-3.5 h-3.5 text-cyan-400" />
           <span>Active Guests</span>
@@ -62,7 +62,7 @@ export const StatsBar: React.FC<StatsBarProps> = ({ stats, leasedCount, theme })
       </div>
 
       {/* Concession Revenue */}
-      <div className="px-4 py-3">
+      <div className="hidden sm:block px-4 py-3">
         <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
           <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
           <span>Concession Sales</span>
@@ -73,7 +73,7 @@ export const StatsBar: React.FC<StatsBarProps> = ({ stats, leasedCount, theme })
       </div>
 
       {/* Mall Reputation */}
-      <div className="px-4 py-3">
+      <div className="hidden sm:block px-4 py-3">
         <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
           <Sparkles className="w-3.5 h-3.5 text-amber-300" />
           <span>Reputation Rating</span>
@@ -85,14 +85,14 @@ export const StatsBar: React.FC<StatsBarProps> = ({ stats, leasedCount, theme })
       </div>
 
       {/* Leasing Occupancy */}
-      <div className="px-4 py-3">
+      <div className="px-2 py-2 sm:px-4 sm:py-3">
         <div className="flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
           <Building className="w-3.5 h-3.5 text-indigo-400" />
           <span>Leased Occupancy</span>
         </div>
         <div className="text-lg font-bold tracking-tight mt-0.5">
           {leasedCount}{' '}
-          <span className="text-xs font-normal text-slate-400">/ {UNITS_LIST.length} Units</span>
+          <span className="text-xs font-normal text-slate-400">/ {unitCount} Units</span>
         </div>
       </div>
     </div>

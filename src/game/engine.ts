@@ -12,13 +12,20 @@ import {
   CustomHallwayTile,
   CustomWallTile,
   EscalatorInstance,
-  HallwayStyle
+  HallwayStyle,
+  MallEntrance
 } from './types';
 import { TICKS_PER_DAY, UNITS_LIST, TENANTS_CATALOG, TILE_SIZE, AMENITIES_CATALOG, CANVAS_WIDTH, CANVAS_HEIGHT } from './constants';
 import { createStoreInstance, generateStoreInterior } from './store';
 import { createShopperAgent, updateShopperAgent } from './shopper';
 import { playPlaceSound, playUpgradeSound, playDoorBell, playErrorSound, playCashSound } from './sound';
 import { rebuildNavGraph } from './pathfinding';
+import { createTemplateDocument, MallDesignDocument, MallTemplateId } from './blueprint';
+
+interface BlueprintSnapshot {
+  design: MallDesignDocument;
+  cash: number;
+}
 
 const CINEMA_MOVIES_LIST = [
   { title: 'Interstellar Echoes 4DX', genre: 'Sci-Fi Epic', price: 24, glow: '#38bdf8' },
@@ -34,10 +41,15 @@ export class MallSimulationEngine {
   public customHallways: CustomHallwayTile[] = [];
   public customWalls: CustomWallTile[] = [];
   public escalators: EscalatorInstance[] = [];
+  public entrances: MallEntrance[] = [];
   public shoppers: ShopperAgent[] = [];
   public floatingFx: FloatingEffect[] = [];
   public stats: MallStats;
   public events: MallEvent[] = [];
+  public design: MallDesignDocument = createTemplateDocument('showcase');
+  public blueprintMode = false;
+  public blueprintHistory: BlueprintSnapshot[] = [];
+  public blueprintFuture: BlueprintSnapshot[] = [];
 
   // Architect Tooling & Selection State
   public architectMode: ArchitectToolMode = 'select';
@@ -48,6 +60,7 @@ export class MallSimulationEngine {
   public selectedAmenity: AmenityDefinition | null = null;
   public customLotConfig = { w: 6, h: 5, name: 'Custom Commercial Lot', cost: 550 };
   public hoveredUnit: MallUnit | null = null;
+  public selectedUnit: MallUnit | null = null;
   public hoveredTile: { x: number; y: number } | null = null;
   public inspectedStore: StoreInstance | null = null;
   public inspectedAmenity: MallAmenityInstance | null = null;
@@ -60,7 +73,7 @@ export class MallSimulationEngine {
   constructor(onStateChange?: () => void) {
     this.onStateChange = onStateChange;
     this.stats = {
-      cash: 18500,
+      cash: 28000,
       week: 1,
       day: 1,
       dayTicks: 0,
@@ -72,129 +85,227 @@ export class MallSimulationEngine {
       customLotsCount: 0
     };
 
-    // Initialize units with authentic Westfield Valley Fair layout
-    this.units = UNITS_LIST.map((u, i) => [u[0], u[1], u[2], u[3], u[4], { ...u[5] }, `u_${i}`]);
-
-    // 1. Seed ShowPlace ICON Cinema & Lounge (Unit 21 in Outdoor Dining Promenade)
-    const cinemaTenant = TENANTS_CATALOG.find((t) => t.id === 'cinema')!;
-    const cinemaUnit = this.units[21];
-    if (cinemaUnit) {
-      this.stores.push(createStoreInstance(cinemaTenant, cinemaUnit));
-    }
-
-    // 2. Seed Din Tai Fung Dumpling House (Unit 20 in Outdoor Dining Promenade)
-    const dumplingTenant = TENANTS_CATALOG.find((t) => t.id === 'dumpling_house')!;
-    const dumplingUnit = this.units[20];
-    if (dumplingUnit) {
-      this.stores.push(createStoreInstance(dumplingTenant, dumplingUnit));
-    }
-
-    // 3. Seed Maison De L'Étoile Haute Couture (Unit 5 in North Luxury Collection)
-    const luxuryTenant = TENANTS_CATALOG.find((t) => t.id === 'luxury_maison')!;
-    const luxuryUnit = this.units[5];
-    if (luxuryUnit) {
-      this.stores.push(createStoreInstance(luxuryTenant, luxuryUnit));
-    }
-
-    // 4. Seed Horizon Quantum Tech Flagship (Unit 10 in West Innovation Galleria)
-    const techTenant = TENANTS_CATALOG.find((t) => t.id === 'tech_apple')!;
-    const techUnit = this.units[10];
-    if (techUnit) {
-      this.stores.push(createStoreInstance(techTenant, techUnit));
-    }
-
-    // 5. Seed Juniper Coffee & Bakery Roastery (Unit 0 in Center Court Rotunda)
-    const coffeeTenant = TENANTS_CATALOG.find((t) => t.id === 'cafe_roastery')!;
-    const coffeeUnit = this.units[0];
-    if (coffeeUnit) {
-      this.stores.push(createStoreInstance(coffeeTenant, coffeeUnit));
-    }
-
-    // 6. Seed Round 1 Cyber VR & Arcade Arena (Unit 25 in South Entertainment Wing)
-    const arcadeTenant = TENANTS_CATALOG.find((t) => t.id === 'arcade_neon')!;
-    const arcadeUnit = this.units[25];
-    if (arcadeUnit) {
-      this.stores.push(createStoreInstance(arcadeTenant, arcadeUnit));
-    }
-
-    // 7. Seed Bloomingdale's 3-Level Anchor (Unit 4 in North Wing)
-    const bloomTenant = TENANTS_CATALOG.find((t) => t.id === 'department_bloom')!;
-    const bloomUnit = this.units[4];
-    if (bloomUnit) {
-      this.stores.push(createStoreInstance(bloomTenant, bloomUnit));
-    }
-
-    // Seed Initial Concourse Amenities (Fountain, Coffee kiosk, Boba kiosk, Planters)
-    this.amenities.push({
-      id: 'amen_fountain_1',
-      type: 'fountain_tier',
-      name: 'Rotunda Dancing Water Fountain',
-      icon: '⛲',
-      x: 39 * TILE_SIZE,
-      y: 23 * TILE_SIZE,
-      w: 2 * TILE_SIZE,
-      h: 2 * TILE_SIZE,
-      placedAtWeek: 1,
-      useCount: 165,
-      earnings: 0
-    });
-
-    this.amenities.push({
-      id: 'amen_espresso_1',
-      type: 'coffee_cart',
-      name: 'West Nordstrom Promenade Espresso',
-      icon: '☕',
-      x: 20 * TILE_SIZE,
-      y: 23.5 * TILE_SIZE,
-      w: 2 * TILE_SIZE,
-      h: 1 * TILE_SIZE,
-      placedAtWeek: 1,
-      useCount: 112,
-      earnings: 560
-    });
-
-    this.amenities.push({
-      id: 'amen_boba_1',
-      type: 'boba_pop_up',
-      name: 'Outdoor Promenade Tiger Boba',
-      icon: '🧋',
-      x: 58 * TILE_SIZE,
-      y: 10 * TILE_SIZE,
-      w: 2 * TILE_SIZE,
-      h: 1 * TILE_SIZE,
-      placedAtWeek: 1,
-      useCount: 128,
-      earnings: 720
-    });
-
-    // Seed signature escalators
-    this.escalators.push({
-      id: 'esc_rotunda_main',
-      type: 'escalator_glass',
-      x: 39,
-      y: 26,
-      w: 2,
-      h: 3,
-      direction: 'dual'
-    });
+    // The operating showcase uses the same serializable document boundary as every
+    // starter mall. There is no special fixed-map renderer or index-only mall model.
+    this.units = this.design.units.map((u) => [u[0], u[1], u[2], u[3], u[4], { ...u[5] }, u[6]]);
+    this.customHallways = this.design.hallways.map(({ x, y, style }) => ({ x, y, style }));
+    this.customWalls = this.design.walls.map((wall) => ({ ...wall }));
+    this.escalators = this.design.escalators.map((escalator) => ({ ...escalator }));
+    this.amenities = this.design.amenities.map((amenity) => ({ ...amenity }));
+    this.entrances = this.design.entrances.map((entrance) => ({ ...entrance }));
+    this.seedShowcaseTenants();
 
     // Rebuild initial navigation graph based on all placed units, amenities, and custom hallways
-    rebuildNavGraph(this.units, this.amenities, this.customHallways);
+    rebuildNavGraph(this.units, this.amenities, this.customHallways, this.entrances);
 
     // Spawn opening crowd of shoppers
     for (let i = 0; i < 42; i++) {
-      this.shoppers.push(createShopperAgent(this.stores));
+      this.spawnShopper();
     }
 
-    this.addEvent(
-      'Westfield Valley Fair Grand Masterplan',
-      'Authentic Valley Fair floorplan active! Center Rotunda, North Luxury, West Nordstrom, East Macy’s, and Outdoor Dining Promenade are open.',
-      'info'
-    );
+    this.addEvent('Welcome to Aurora Grand', 'Explore the operating showcase, renovate its wings, or choose a starter mall and build your own.', 'info');
+  }
+
+  private seedShowcaseTenants() {
+    const placements: Array<[string, number]> = [
+      ['cinema', 3], ['dumpling_house', 20], ['luxury_maison', 16], ['swiss_watches', 17],
+      ['tech_apple', 6], ['cafe_roastery', 12], ['arcade_bowlero', 18], ['book_nook', 13]
+    ];
+    for (const [tenantId, unitIndex] of placements) {
+      const tenant = TENANTS_CATALOG.find((candidate) => candidate.id === tenantId);
+      const unit = this.units[unitIndex];
+      if (tenant && unit) this.stores.push(createStoreInstance(tenant, unit));
+    }
+  }
+
+  private spawnShopper() {
+    const shopper = createShopperAgent(this.stores, this.entrances);
+    if (shopper) this.shoppers.push(shopper);
   }
 
   public setCallback(cb: () => void) {
     this.onStateChange = cb;
+  }
+
+  private cloneDesign(): MallDesignDocument {
+    this.syncDesignFromRuntime();
+    return JSON.parse(JSON.stringify(this.design)) as MallDesignDocument;
+  }
+
+  private syncDesignFromRuntime() {
+    this.design.units = this.units.map((u) => [u[0], u[1], u[2], u[3], u[4], { ...u[5] }, u[6]]);
+    this.design.hallways = this.customHallways.map((h) => ({ ...h, floorId: this.design.activeFloorId }));
+    this.design.walls = this.customWalls.map((wall) => ({ ...wall }));
+    this.design.escalators = this.escalators.map((escalator) => ({ ...escalator }));
+    this.design.amenities = this.amenities.map((amenity) => ({ ...amenity }));
+    this.design.entrances = this.entrances.map((entrance) => ({ ...entrance }));
+    this.design.savedAt = Date.now();
+  }
+
+  private captureBlueprintSnapshot() {
+    this.blueprintHistory.push({ design: this.cloneDesign(), cash: this.stats.cash });
+    if (this.blueprintHistory.length > 40) this.blueprintHistory.shift();
+    this.blueprintFuture = [];
+  }
+
+  private restoreBlueprintSnapshot(snapshot: BlueprintSnapshot) {
+    const unitById = new Map(snapshot.design.units.map((u) => [u[6], u]));
+    this.design = JSON.parse(JSON.stringify(snapshot.design)) as MallDesignDocument;
+    this.units = this.design.units.map((u) => [u[0], u[1], u[2], u[3], u[4], { ...u[5] }, u[6]]);
+    const runtimeById = new Map(this.units.map((u) => [u[6], u]));
+    this.stores = this.stores
+      .filter((store) => unitById.has(store.unit[6]))
+      .map((store) => {
+        const nextUnit = runtimeById.get(store.unit[6])!;
+        return { ...store, unit: nextUnit, interior: generateStoreInterior(store.tenant, nextUnit, store.level) };
+      });
+    this.customHallways = this.design.hallways.map(({ x, y, style }) => ({ x, y, style }));
+    this.customWalls = (this.design.walls || []).map((wall) => ({ ...wall }));
+    this.escalators = (this.design.escalators || []).map((escalator) => ({ ...escalator }));
+    this.amenities = (this.design.amenities || []).map((amenity) => ({ ...amenity }));
+    this.entrances = (this.design.entrances || []).map((entrance) => ({ ...entrance }));
+    this.stats.cash = snapshot.cash;
+    this.selectedUnit = null;
+    this.inspectedStore = null;
+    rebuildNavGraph(this.units, this.amenities, this.customHallways, this.entrances);
+    this.notify();
+  }
+
+  public undoBlueprint(): boolean {
+    const previous = this.blueprintHistory.pop();
+    if (!previous) return false;
+    this.blueprintFuture.push({ design: this.cloneDesign(), cash: this.stats.cash });
+    this.restoreBlueprintSnapshot(previous);
+    return true;
+  }
+
+  public redoBlueprint(): boolean {
+    const next = this.blueprintFuture.pop();
+    if (!next) return false;
+    this.blueprintHistory.push({ design: this.cloneDesign(), cash: this.stats.cash });
+    this.restoreBlueprintSnapshot(next);
+    return true;
+  }
+
+  public setBlueprintMode(enabled: boolean) {
+    this.blueprintMode = enabled;
+    this.isPaused = enabled;
+    this.selectedTenant = null;
+    this.selectedAmenity = null;
+    if (enabled) this.architectMode = 'select';
+    this.notify();
+  }
+
+  public applyTemplate(templateId: MallTemplateId) {
+    this.captureBlueprintSnapshot();
+    this.design = createTemplateDocument(templateId);
+    this.units = this.design.units.map((u) => [u[0], u[1], u[2], u[3], u[4], { ...u[5] }, u[6]]);
+    this.customHallways = this.design.hallways.map(({ x, y, style }) => ({ x, y, style }));
+    this.customWalls = this.design.walls.map((wall) => ({ ...wall }));
+    this.escalators = this.design.escalators.map((escalator) => ({ ...escalator }));
+    this.amenities = this.design.amenities.map((amenity) => ({ ...amenity }));
+    this.entrances = this.design.entrances.map((entrance) => ({ ...entrance }));
+    this.stores = [];
+    this.shoppers = [];
+    this.selectedUnit = null;
+    this.inspectedStore = null;
+    this.stats.cash = templateId === 'showcase' ? 28000 : templateId === 'blank' ? 40000 : templateId === 'small' ? 26000 : templateId === 'medium' ? 36000 : 52000;
+    this.stats.week = 1;
+    this.stats.day = 1;
+    this.stats.dayTicks = 0;
+    this.stats.totalSales = 0;
+    this.stats.activeShoppersCount = 0;
+    this.stats.customLotsCount = this.units.length;
+    if (templateId === 'showcase') this.seedShowcaseTenants();
+    rebuildNavGraph(this.units, this.amenities, this.customHallways, this.entrances);
+    for (let i = 0; i < (templateId === 'showcase' ? 42 : 24); i++) this.spawnShopper();
+    this.addEvent('Mall Blueprint Loaded', `${this.design.name} is ready to design, expand, and operate.`, 'info');
+    this.notify();
+  }
+
+  public renameMall(name: string) {
+    this.design.name = name.trim() || 'My Mall';
+    this.syncDesignFromRuntime();
+    this.notify();
+  }
+
+  public saveDesignToDevice() {
+    this.syncDesignFromRuntime();
+    localStorage.setItem('mall-tycoon-design-v1', JSON.stringify(this.design));
+    this.addEvent('Blueprint Saved', `${this.design.name} was saved on this device.`, 'success');
+  }
+
+  public loadDesignFromDevice(): boolean {
+    const raw = localStorage.getItem('mall-tycoon-design-v1');
+    if (!raw) return false;
+    const parsed = JSON.parse(raw) as MallDesignDocument;
+    if (parsed.version !== 1 || !Array.isArray(parsed.units)) return false;
+    this.captureBlueprintSnapshot();
+    this.design = parsed;
+    this.units = parsed.units.map((u) => [u[0], u[1], u[2], u[3], u[4], { ...u[5] }, u[6]]);
+    this.customHallways = parsed.hallways.map(({ x, y, style }) => ({ x, y, style }));
+    this.customWalls = (parsed.walls || []).map((wall) => ({ ...wall }));
+    this.escalators = (parsed.escalators || []).map((escalator) => ({ ...escalator }));
+    this.amenities = (parsed.amenities || []).map((amenity) => ({ ...amenity }));
+    this.entrances = (parsed.entrances || []).map((entrance) => ({ ...entrance }));
+    this.stores = [];
+    this.selectedUnit = null;
+    rebuildNavGraph(this.units, this.amenities, this.customHallways, this.entrances);
+    this.notify();
+    return true;
+  }
+
+  public paintHallwayRect(startX: number, startY: number, endX: number, endY: number, style: HallwayStyle) {
+    const minX = Math.max(1, Math.min(startX, endX));
+    const maxX = Math.min(Math.floor(CANVAS_WIDTH / TILE_SIZE) - 2, Math.max(startX, endX));
+    const minY = Math.max(1, Math.min(startY, endY));
+    const maxY = Math.min(Math.floor(CANVAS_HEIGHT / TILE_SIZE) - 2, Math.max(startY, endY));
+    const cells: Array<{ x: number; y: number }> = [];
+    for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) cells.push({ x, y });
+    const buildableCells = cells.filter((cell) => !this.units.some((unit) => cell.x >= unit[1] && cell.x < unit[1] + unit[3] && cell.y >= unit[2] && cell.y < unit[2] + unit[4]));
+    const cost = buildableCells.length * 10;
+    if (!buildableCells.length || this.stats.cash < cost) return false;
+    this.captureBlueprintSnapshot();
+    for (const cell of buildableCells) {
+      const found = this.customHallways.find((h) => h.x === cell.x && h.y === cell.y);
+      if (found) found.style = style; else this.customHallways.push({ ...cell, style });
+    }
+    this.stats.cash -= cost;
+    this.syncDesignFromRuntime();
+    rebuildNavGraph(this.units, this.amenities, this.customHallways);
+    playPlaceSound();
+    this.notify();
+    return true;
+  }
+
+  public createLotFromRect(startX: number, startY: number, endX: number, endY: number) {
+    const x = Math.min(startX, endX);
+    const y = Math.min(startY, endY);
+    const w = Math.max(3, Math.abs(endX - startX) + 1);
+    const h = Math.max(3, Math.abs(endY - startY) + 1);
+    this.captureBlueprintSnapshot();
+    const result = this.createCustomLot(x, y, w, h, 'Custom Mall Space');
+    if (!result.success) this.blueprintHistory.pop();
+    else this.syncDesignFromRuntime();
+    return result.success;
+  }
+
+  public moveVacantUnit(unit: MallUnit, newX: number, newY: number): boolean {
+    if (this.stores.some((store) => store.unit === unit)) return false;
+    const oldX = unit[1];
+    const oldY = unit[2];
+    const others = this.units.filter((candidate) => candidate !== unit);
+    const collides = others.some((other) => newX < other[1] + other[3] && newX + unit[3] > other[1] && newY < other[2] + other[4] && newY + unit[4] > other[2]);
+    if (collides || newX < 1 || newY < 1 || newX + unit[3] > 79 || newY + unit[4] > 47) return false;
+    this.captureBlueprintSnapshot();
+    unit[1] = Math.round(newX);
+    unit[2] = Math.round(newY);
+    unit[5] = { x: Math.round((unit[1] + unit[3] / 2) * TILE_SIZE), y: Math.round((unit[2] + unit[4]) * TILE_SIZE) };
+    if (!Number.isFinite(unit[1]) || !Number.isFinite(unit[2])) { unit[1] = oldX; unit[2] = oldY; return false; }
+    this.syncDesignFromRuntime();
+    rebuildNavGraph(this.units, this.amenities, this.customHallways);
+    this.notify();
+    return true;
   }
 
   public notify() {
@@ -244,6 +355,7 @@ export class MallSimulationEngine {
     this.addEvent('New Storefront Leased', `${tenant.name} (${tenant.cat}) signed lease in ${unit[0]}. Visitors arriving!`, 'success');
 
     this.selectedTenant = null;
+    this.selectedUnit = unit;
     this.inspectedStore = newStore;
     this.notify();
 
@@ -439,6 +551,8 @@ export class MallSimulationEngine {
       return { success: false, message: 'Cannot reconfigure dimensions of a lot with an active leased tenant.' };
     }
 
+    if (this.blueprintMode) this.captureBlueprintSnapshot();
+
     unit[0] = newName || unit[0];
     unit[3] = Math.max(4, Math.min(16, newW));
     unit[4] = Math.max(4, Math.min(12, newH));
@@ -460,6 +574,7 @@ export class MallSimulationEngine {
     }
 
     rebuildNavGraph(this.units, this.amenities, this.customHallways);
+    this.syncDesignFromRuntime();
     this.notify();
     return { success: true, message: `Updated lot configuration for ${unit[0]}!` };
   }
@@ -532,9 +647,50 @@ export class MallSimulationEngine {
     return { success: true, message: `Placed ${amenityDef.name}!` };
   }
 
+  public placeEntranceAt(gridX: number, gridY: number): { success: boolean; message: string } {
+    if (!this.customHallways.some((hallway) => hallway.x === gridX && hallway.y === gridY)) {
+      return { success: false, message: 'Entrances must connect directly to a corridor tile.' };
+    }
+    if (this.entrances.some((entry) => entry.x === gridX && entry.y === gridY)) {
+      return { success: false, message: 'There is already an entrance at this threshold.' };
+    }
+    const cost = 350;
+    if (this.stats.cash < cost) return { success: false, message: 'Insufficient funds to build an entrance portal.' };
+    const centerX = CANVAS_WIDTH / TILE_SIZE / 2;
+    const centerY = CANVAS_HEIGHT / TILE_SIZE / 2;
+    const horizontal = Math.abs(gridX - centerX) > Math.abs(gridY - centerY);
+    const side: MallEntrance['side'] = horizontal ? (gridX < centerX ? 'west' : 'east') : (gridY < centerY ? 'north' : 'south');
+    this.captureBlueprintSnapshot();
+    const entrance: MallEntrance = {
+      id: `entrance_${Date.now()}`,
+      name: `${side[0].toUpperCase()}${side.slice(1)} Entrance ${this.entrances.length + 1}`,
+      x: gridX, y: gridY, side, mode: 'both', visitorsEntered: 0, visitorsExited: 0
+    };
+    this.entrances.push(entrance);
+    this.stats.cash -= cost;
+    this.syncDesignFromRuntime();
+    rebuildNavGraph(this.units, this.amenities, this.customHallways, this.entrances);
+    this.addEvent('Entrance Opened', `${entrance.name} now handles arriving and departing visitors.`, 'success');
+    this.notify();
+    return { success: true, message: `Built ${entrance.name}.` };
+  }
+
   public demolishAt(canvasX: number, canvasY: number): { success: boolean; message: string } {
+    if (this.blueprintMode) this.captureBlueprintSnapshot();
     const tileX = Math.floor(canvasX / TILE_SIZE);
     const tileY = Math.floor(canvasY / TILE_SIZE);
+
+    const entrance = this.entrances.find((entry) => entry.x === tileX && entry.y === tileY);
+    if (entrance) {
+      if (this.entrances.length <= 1 && !this.blueprintMode) return { success: false, message: 'An operating mall needs at least one entrance.' };
+      this.entrances = this.entrances.filter((entry) => entry.id !== entrance.id);
+      this.stats.cash += 175;
+      this.syncDesignFromRuntime();
+      rebuildNavGraph(this.units, this.amenities, this.customHallways, this.entrances);
+      this.addEvent('Entrance Removed', `${entrance.name} was closed.`, 'warning');
+      this.notify();
+      return { success: true, message: 'Entrance removed (+$175).' };
+    }
 
     // 1. Check custom hallway or wall
     const isHall = this.customHallways.some((h) => h.x === tileX && h.y === tileY);
@@ -639,6 +795,65 @@ export class MallSimulationEngine {
     return { success: true, message: `Upgraded ${store.tenant.name} to Tier ${store.level}!` };
   }
 
+  public setStorePricing(strategy: StoreInstance['priceStrategy']) {
+    if (!this.inspectedStore) return;
+    this.inspectedStore.priceStrategy = strategy;
+    this.addEvent('Pricing Updated', `${this.inspectedStore.tenant.name} switched to ${strategy} pricing.`, 'info');
+    this.notify();
+  }
+
+  public adjustStoreStaff(delta: -1 | 1): { success: boolean; message: string } {
+    const store = this.inspectedStore;
+    if (!store) return { success: false, message: 'No store selected.' };
+    if (delta < 0 && store.staffCount <= 1) return { success: false, message: 'Every store needs at least one employee.' };
+    if (delta > 0 && this.stats.cash < 300) return { success: false, message: 'Need $300 to recruit and train an employee.' };
+    store.staffCount += delta;
+    store.customStaffHired += delta;
+    this.stats.cash += delta > 0 ? -300 : 100;
+    store.customerSatisfaction = Math.max(40, Math.min(100, store.customerSatisfaction + delta * 2));
+    this.addEvent(delta > 0 ? 'Staff Hired' : 'Staffing Reduced', `${store.tenant.name} now schedules ${store.staffCount} employees.`, 'info');
+    this.notify();
+    return { success: true, message: 'Staffing updated.' };
+  }
+
+  public restockInspectedStore(): { success: boolean; message: string } {
+    const store = this.inspectedStore;
+    if (!store) return { success: false, message: 'No store selected.' };
+    const cost = 240;
+    if (this.stats.cash < cost) return { success: false, message: 'Need $240 for a replenishment delivery.' };
+    this.stats.cash -= cost;
+    store.inventoryLevel = 100;
+    this.addEvent('Inventory Delivered', `${store.tenant.name} is fully stocked for the next rush.`, 'success');
+    this.notify();
+    return { success: true, message: 'Inventory restored.' };
+  }
+
+  public promoteInspectedStore(): { success: boolean; message: string } {
+    const store = this.inspectedStore;
+    if (!store) return { success: false, message: 'No store selected.' };
+    const cost = 450;
+    if (this.stats.cash < cost) return { success: false, message: 'Need $450 to launch a local campaign.' };
+    this.stats.cash -= cost;
+    store.promotionTicks = 1800;
+    this.addEvent('Store Campaign Live', `${store.tenant.name} is trending locally; shopper demand is boosted.`, 'success');
+    this.notify();
+    return { success: true, message: 'Promotion launched.' };
+  }
+
+  public renovateStoreFacade(style: StoreInstance['facadeStyle']): { success: boolean; message: string } {
+    const store = this.inspectedStore;
+    if (!store) return { success: false, message: 'No store selected.' };
+    if (store.facadeStyle === style) return { success: true, message: 'Facade already selected.' };
+    const cost = 325;
+    if (this.stats.cash < cost) return { success: false, message: 'Need $325 for a storefront renovation.' };
+    this.stats.cash -= cost;
+    store.facadeStyle = style;
+    store.customerSatisfaction = Math.min(100, store.customerSatisfaction + 2);
+    this.addEvent('Storefront Renovated', `${store.tenant.name} debuted its new ${style} facade.`, 'success');
+    this.notify();
+    return { success: true, message: 'Storefront renovated.' };
+  }
+
   public evictInspectedStore(): { success: boolean; message: string } {
     if (!this.inspectedStore) return { success: false, message: 'No store selected.' };
 
@@ -678,7 +893,7 @@ export class MallSimulationEngine {
       this.stats.cash -= cost;
       this.stats.reputation = Math.min(100, this.stats.reputation + 8);
       for (let i = 0; i < 16; i++) {
-        this.shoppers.push(createShopperAgent(this.stores));
+        this.spawnShopper();
       }
       this.addEvent('Regional Media Campaign', 'Mall billboards and social campaigns live. Wave of shoppers arriving!', 'success');
       this.notify();
@@ -714,6 +929,7 @@ export class MallSimulationEngine {
 
     // 2. Advance Deep Store Simulation State (Cinema Showtimes, Oven Baking, Keynote Stages)
     for (const store of this.stores) {
+      store.promotionTicks = Math.max(0, store.promotionTicks - speed);
       // A. CINEMA MULTI-STAGE SHOWTIME SIMULATION
       if (store.tenant.id === 'cinema' && store.cinemaState) {
         const cs = store.cinemaState;
@@ -764,11 +980,11 @@ export class MallSimulationEngine {
     }
 
     // 3. Manage Shopper Lifecycle & Crowds
-    const totalDraw = this.stores.reduce((sum, s) => sum + s.tenant.draw * (1 + (s.level - 1) * 0.5), 0) + this.amenities.length * 3;
+    const totalDraw = this.stores.reduce((sum, s) => sum + s.tenant.draw * (1 + (s.level - 1) * 0.5) * (s.promotionTicks > 0 ? 1.5 : 1) * (s.inventoryLevel < 15 ? 0.5 : 1), 0) + this.amenities.length * 3;
     const targetShopperCount = Math.min(110, Math.round(28 + totalDraw * 1.35 + (this.stats.reputation * 0.38)));
 
     if (this.shoppers.length < targetShopperCount && Math.random() < 0.38 * speed) {
-      this.shoppers.push(createShopperAgent(this.stores));
+      this.spawnShopper();
     }
 
     // 4. Update Shopper State Machines
@@ -777,7 +993,7 @@ export class MallSimulationEngine {
       updateShopperAgent(s, this.stores, this.floatingFx, speed, (amount) => {
         this.stats.cash += amount;
         this.stats.totalSales += amount;
-      });
+      }, this.entrances);
 
       if (s.dead) {
         this.shoppers.splice(i, 1);
@@ -801,7 +1017,8 @@ export class MallSimulationEngine {
     const rentPerStore = 320;
     const rentRevenue = this.stores.reduce((sum, s) => sum + Math.round(rentPerStore * (1 + (s.level - 1) * 0.6)), 0);
     const amenityRevenue = this.amenities.reduce((sum, a) => sum + (a.earnings > 0 ? 55 : 15), 0);
-    const maintenanceCost = Math.round(this.stores.length * 45 + this.units.length * 15 + (100 - this.stats.cleanliness) * 4);
+    const payrollCost = this.stores.reduce((sum, store) => sum + Math.max(0, store.customStaffHired) * 85, 0);
+    const maintenanceCost = Math.round(this.stores.length * 45 + this.units.length * 15 + (100 - this.stats.cleanliness) * 4 + payrollCost);
     const netProfit = rentRevenue + amenityRevenue - maintenanceCost;
 
     this.stats.cash += netProfit;
@@ -823,7 +1040,7 @@ export class MallSimulationEngine {
         desc: 'Food critic praised the culinary offerings across the promenade and trattoria! Reputation +4.',
         action: () => {
           this.stats.reputation = Math.min(100, this.stats.reputation + 4);
-          for (let i = 0; i < 10; i++) this.shoppers.push(createShopperAgent(this.stores));
+          for (let i = 0; i < 10; i++) this.spawnShopper();
         }
       },
       {
@@ -839,7 +1056,7 @@ export class MallSimulationEngine {
         desc: 'Crowds flock to the Santana Row promenade and outdoor terraces.',
         action: () => {
           this.stats.reputation = Math.min(100, this.stats.reputation + 4);
-          for (let i = 0; i < 14; i++) this.shoppers.push(createShopperAgent(this.stores));
+          for (let i = 0; i < 14; i++) this.spawnShopper();
         }
       }
     ];

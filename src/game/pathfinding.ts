@@ -1,4 +1,4 @@
-import { PathNode, MallUnit, MallAmenityInstance, CustomHallwayTile } from './types';
+import { PathNode, MallUnit, MallAmenityInstance, CustomHallwayTile, MallEntrance } from './types';
 import { TILE_SIZE } from './constants';
 
 export interface NavNode {
@@ -198,49 +198,36 @@ export let NAV_GRAPH: Record<string, NavNode> = { ...BASE_CONCOURSE_GRAPH };
 export function rebuildNavGraph(
   units: MallUnit[],
   amenities?: MallAmenityInstance[],
-  customHallways?: CustomHallwayTile[]
+  customHallways?: CustomHallwayTile[],
+  entrances?: MallEntrance[]
 ) {
   const graph: Record<string, NavNode> = {};
 
-  // Clone base concourse junctions
-  for (const [id, node] of Object.entries(BASE_CONCOURSE_GRAPH)) {
-    graph[id] = {
-      id: node.id,
-      x: node.x,
-      y: node.y,
-      neighbors: [...node.neighbors]
-    };
+  // Hallway tiles are the only walkable surface. Adjacent tiles form the graph;
+  // there are no long invisible shortcuts through vacant or leased units.
+  const hallwaySet = new Set((customHallways || []).map((h) => `${h.x},${h.y}`));
+  for (const h of customHallways || []) {
+    const id = `hallway_${h.x}_${h.y}`;
+    const neighbors: string[] = [];
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = h.x + dx;
+      const ny = h.y + dy;
+      if (hallwaySet.has(`${nx},${ny}`)) neighbors.push(`hallway_${nx}_${ny}`);
+    }
+    graph[id] = { id, x: (h.x + 0.5) * TILE_SIZE, y: (h.y + 0.5) * TILE_SIZE, neighbors };
   }
 
-  // Connect custom hallway tiles
-  if (customHallways && customHallways.length > 0) {
-    customHallways.forEach((h) => {
-      const hId = `hallway_${h.x}_${h.y}`;
-      const hpx = (h.x + 0.5) * TILE_SIZE;
-      const hpy = (h.y + 0.5) * TILE_SIZE;
-
-      let bestJuncId = 'junc_rotunda_c';
-      let bestDist = Infinity;
-      for (const [jid, jnode] of Object.entries(BASE_CONCOURSE_GRAPH)) {
-        const d = Math.hypot(jnode.x - hpx, jnode.y - hpy);
-        if (d < bestDist) {
-          bestDist = d;
-          bestJuncId = jid;
-        }
-      }
-
-      graph[hId] = {
-        id: hId,
-        x: hpx,
-        y: hpy,
-        neighbors: [bestJuncId]
-      };
-
-      if (graph[bestJuncId] && !graph[bestJuncId].neighbors.includes(hId)) {
-        graph[bestJuncId].neighbors.push(hId);
-      }
-    });
-  }
+  const connectLeafToNearestHallway = (id: string, x: number, y: number, maxDistance = TILE_SIZE * 2.25) => {
+    let closestId = '';
+    let closestDistance = Infinity;
+    for (const [nodeId, node] of Object.entries(graph)) {
+      if (!nodeId.startsWith('hallway_')) continue;
+      const distance = Math.hypot(node.x - x, node.y - y);
+      if (distance < closestDistance) { closestDistance = distance; closestId = nodeId; }
+    }
+    graph[id] = { id, x, y, neighbors: closestId && closestDistance <= maxDistance ? [closestId] : [] };
+    if (closestId && closestDistance <= maxDistance) graph[closestId].neighbors.push(id);
+  };
 
   // Connect all store doorway nodes dynamically
   units.forEach((unit, idx) => {
@@ -248,45 +235,7 @@ export function rebuildNavGraph(
     const doorX = unit[5].x;
     const doorY = unit[5].y;
 
-    // Find 2 closest concourse spine junctions
-    let bestJuncId = 'junc_rotunda_c';
-    let bestDist = Infinity;
-    let secondJuncId = '';
-    let secondDist = Infinity;
-
-    for (const [jid, jnode] of Object.entries(BASE_CONCOURSE_GRAPH)) {
-      if (jid.startsWith('ent_')) continue;
-      const d = Math.hypot(jnode.x - doorX, jnode.y - doorY);
-      if (d < bestDist) {
-        secondDist = bestDist;
-        secondJuncId = bestJuncId;
-        bestDist = d;
-        bestJuncId = jid;
-      } else if (d < secondDist) {
-        secondDist = d;
-        secondJuncId = jid;
-      }
-    }
-
-    const neighbors = [bestJuncId];
-    if (secondJuncId && secondDist < bestDist * 1.5) {
-      neighbors.push(secondJuncId);
-    }
-
-    graph[doorId] = {
-      id: doorId,
-      x: doorX,
-      y: doorY,
-      neighbors
-    };
-
-    // Add bidirectional link to junctions
-    if (graph[bestJuncId] && !graph[bestJuncId].neighbors.includes(doorId)) {
-      graph[bestJuncId].neighbors.push(doorId);
-    }
-    if (secondJuncId && graph[secondJuncId] && !graph[secondJuncId].neighbors.includes(doorId)) {
-      graph[secondJuncId].neighbors.push(doorId);
-    }
+    connectLeafToNearestHallway(doorId, doorX, doorY);
   });
 
   // Connect amenities if present
@@ -296,28 +245,12 @@ export function rebuildNavGraph(
       const ax = amenity.x + amenity.w / 2;
       const ay = amenity.y + amenity.h / 2;
 
-      let bestJuncId = 'junc_rotunda_c';
-      let bestDist = Infinity;
-      for (const [jid, jnode] of Object.entries(BASE_CONCOURSE_GRAPH)) {
-        if (jid.startsWith('ent_')) continue;
-        const d = Math.hypot(jnode.x - ax, jnode.y - ay);
-        if (d < bestDist) {
-          bestDist = d;
-          bestJuncId = jid;
-        }
-      }
-
-      graph[amenId] = {
-        id: amenId,
-        x: ax,
-        y: ay,
-        neighbors: [bestJuncId]
-      };
-
-      if (graph[bestJuncId] && !graph[bestJuncId].neighbors.includes(amenId)) {
-        graph[bestJuncId].neighbors.push(amenId);
-      }
+      connectLeafToNearestHallway(amenId, ax, ay, TILE_SIZE * 1.8);
     });
+  }
+
+  for (const entrance of entrances || []) {
+    connectLeafToNearestHallway(`entrance_${entrance.id}`, (entrance.x + 0.5) * TILE_SIZE, (entrance.y + 0.5) * TILE_SIZE, TILE_SIZE * 1.5);
   }
 
   NAV_GRAPH = graph;
@@ -325,7 +258,7 @@ export function rebuildNavGraph(
 
 // Find closest nav graph node to any (x, y)
 export function findClosestNavNode(x: number, y: number): string {
-  let closestId = 'junc_rotunda_c';
+  let closestId = '';
   let minDist = Infinity;
 
   for (const [id, node] of Object.entries(NAV_GRAPH)) {
@@ -344,6 +277,8 @@ export function findHallwayPath(startX: number, startY: number, destX: number, d
   const startNodeId = findClosestNavNode(startX, startY);
   const targetNodeId = findClosestNavNode(destX, destY);
 
+  if (!startNodeId || !targetNodeId) return [];
+
   if (startNodeId === targetNodeId) {
     const n = NAV_GRAPH[startNodeId];
     return [
@@ -360,7 +295,7 @@ export function findHallwayPath(startX: number, startY: number, destX: number, d
   const startNode = NAV_GRAPH[startNodeId];
   const targetNode = NAV_GRAPH[targetNodeId];
   if (!startNode || !targetNode) {
-    return [{ x: destX, y: destY }];
+    return [];
   }
 
   gScore.set(startNodeId, 0);
@@ -413,5 +348,5 @@ export function findHallwayPath(startX: number, startY: number, destX: number, d
     }
   }
 
-  return [{ x: destX, y: destY }];
+  return [];
 }

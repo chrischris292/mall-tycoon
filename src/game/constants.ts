@@ -1010,86 +1010,86 @@ export const LOT_SIZE_PRESETS = [
 // ============================================================================
 // ARCHITECTURAL MASTERPLAN: WESTFIELD VALLEY FAIR SUPER-REGIONAL MALL
 // Canvas Dimensions: 2560px width x 1536px height (80 x 48 tiles, TILE_SIZE = 32px)
-// True authentic layout: Center Rotunda, North Bloomingdale's & Luxury Wing,
-// West Nordstrom & Apple Flagship, East Macy's & Fashion,
-// Outdoor Dining Promenade with Eataly, Din Tai Fung, & ShowPlace ICON Cinema!
+// Directory-inspired Level 1 abstraction: an elongated, gently bending main concourse
+// with offset anchor courts and the 2020 north-east expansion. It deliberately avoids
+// the inaccurate four-way cross used by the original prototype.
 // ============================================================================
 export const UNITS_LIST: MallUnit[] = [
   // =========================================================================
   // 1. GRAND CENTER COURT ROTUNDA (x: 32.0 to 48.0, y: 18.0 to 30.0, center at 40, 24)
   // Radial marble flooring, brass sunburst medallion, tiered fountain, glass elevators
   // =========================================================================
-  ['ROTUNDA NORTH-WEST LOT', 33.0, 18.5, 5.5, 4.5, { x: 38.5 * TILE_SIZE, y: 20.75 * TILE_SIZE }], // Unit 0 (Cafe & Roastery)
-  ['ROTUNDA NORTH-EAST LOT', 41.5, 18.5, 5.5, 4.5, { x: 41.5 * TILE_SIZE, y: 20.75 * TILE_SIZE }], // Unit 1 (Gelato & Pastry)
-  ['ROTUNDA SOUTH-WEST LOT', 33.0, 25.0, 5.5, 4.5, { x: 38.5 * TILE_SIZE, y: 25.0 * TILE_SIZE }],   // Unit 2 (Espresso Bar)
-  ['ROTUNDA SOUTH-EAST LOT', 41.5, 25.0, 5.5, 4.5, { x: 41.5 * TILE_SIZE, y: 25.0 * TILE_SIZE }],   // Unit 3 (Chocolatier)
+  ['CENTER COURT NORTH-WEST LOT', 31, 18, 6, 4, { x: 34 * TILE_SIZE, y: 22 * TILE_SIZE }],
+  ['CENTER COURT NORTH-EAST LOT', 40, 18, 6, 4, { x: 43 * TILE_SIZE, y: 22 * TILE_SIZE }],
+  ['CENTER COURT SOUTH-WEST LOT', 31, 26, 6, 4, { x: 34 * TILE_SIZE, y: 26 * TILE_SIZE }],
+  ['CENTER COURT SOUTH-EAST LOT', 40, 26, 6, 4, { x: 43 * TILE_SIZE, y: 26 * TILE_SIZE }],
 
   // =========================================================================
   // 2. NORTH LUXURY COLLECTION & BLOOMINGDALE'S (North Wing, x: 32.0 to 48.0, y: 2.0 to 18.0)
   // High ceilings, Nero Marquina marble, Cartier, Louis Vuitton, Gucci, Prada, Saint Laurent
   // Terminating into the grand multi-level Bloomingdale's luxury anchor!
   // =========================================================================
-  ['BLOOMINGDALE\'S 3-LEVEL FLAGSHIP ANCHOR', 34.0, 2.5, 12.0, 6.0, { x: 40.0 * TILE_SIZE, y: 8.5 * TILE_SIZE }], // Unit 4 (Mega Bloomingdale's Anchor 12x6)
+  ['BLOOMINGDALE\'S 3-LEVEL FLAGSHIP ANCHOR', 56, 3, 13, 9, { x: 62.5 * TILE_SIZE, y: 12 * TILE_SIZE }],
   
-  ['MAISON DE L\'ÉTOILE HAUTE COUTURE', 33.0, 9.2, 5.5, 4.0, { x: 38.5 * TILE_SIZE, y: 11.2 * TILE_SIZE }], // Unit 5 (Louis Vuitton / Maison)
-  ['SWISS CHRONOMETER & WATCHMAKER VAULT', 33.0, 13.8, 5.5, 4.0, { x: 38.5 * TILE_SIZE, y: 15.8 * TILE_SIZE }], // Unit 6 (Cartier / Rolex / IWC)
+  ['MAISON DE L\'ÉTOILE HAUTE COUTURE', 46.5, 13, 5, 4, { x: 49 * TILE_SIZE, y: 17 * TILE_SIZE }],
+  ['SWISS CHRONOMETER & WATCHMAKER VAULT', 52, 13, 4, 4, { x: 54 * TILE_SIZE, y: 17 * TILE_SIZE }],
 
-  ['ROYAL DIAMOND & HIGH JEWELRY ATELIER', 41.5, 9.2, 5.5, 4.0, { x: 41.5 * TILE_SIZE, y: 11.2 * TILE_SIZE }], // Unit 7 (Tiffany & Co / Bvlgari)
-  ['SARTORIA MILANO BESPOKE ITALIAN TAILOR', 41.5, 13.8, 5.5, 4.0, { x: 41.5 * TILE_SIZE, y: 15.8 * TILE_SIZE }], // Unit 8 (Prada / Gucci / Saint Laurent)
+  ['ROYAL DIAMOND & HIGH JEWELRY ATELIER', 46.5, 24, 5, 4, { x: 49 * TILE_SIZE, y: 24 * TILE_SIZE }],
+  ['SARTORIA MILANO BESPOKE ITALIAN TAILOR', 52, 24, 4, 4, { x: 54 * TILE_SIZE, y: 24 * TILE_SIZE }],
 
   // =========================================================================
   // 3. WEST WING: NORDSTROM ANCHOR & INNOVATION GALLERIA (x: 2.0 to 32.0, y: 18.0 to 30.0)
   // Anchored by Nordstrom, Apple Store Flagship, Sephora, Lululemon, Tesla
   // =========================================================================
-  ['NORDSTROM 3-LEVEL DEPARTMENT ANCHOR', 2.5, 18.5, 11.5, 11.0, { x: 14.0 * TILE_SIZE, y: 24.0 * TILE_SIZE }], // Unit 9 (Mega Nordstrom Anchor 11.5x11)
+  ['NORDSTROM 3-LEVEL DEPARTMENT ANCHOR', 3, 8, 13, 13, { x: 16 * TILE_SIZE, y: 17 * TILE_SIZE }],
   
-  ['HORIZON QUANTUM TECH INNOVATION FLAGSHIP', 15.0, 18.5, 7.5, 4.5, { x: 18.75 * TILE_SIZE, y: 23.0 * TILE_SIZE }], // Unit 10 (Apple Flagship Store)
-  ['VELVET & GLOW LUXURY COSMETICS PALACE', 23.5, 18.5, 7.0, 4.5, { x: 27.0 * TILE_SIZE, y: 23.0 * TILE_SIZE }], // Unit 11 (Sephora Beauty)
+  ['HORIZON QUANTUM TECH INNOVATION FLAGSHIP', 16.5, 15, 7, 4, { x: 20 * TILE_SIZE, y: 19 * TILE_SIZE }],
+  ['VELVET & GLOW LUXURY COSMETICS PALACE', 24, 16, 6, 4, { x: 27 * TILE_SIZE, y: 20 * TILE_SIZE }],
 
-  ['APEX ATHLETIC PERFORMANCE & YOGA HUB', 15.0, 25.0, 7.5, 4.5, { x: 18.75 * TILE_SIZE, y: 25.0 * TILE_SIZE }], // Unit 12 (Lululemon / Alo Yoga)
-  ['GENTLE MONSTER & LUXURY EYEWEAR STUDIO', 23.5, 25.0, 7.0, 4.5, { x: 27.0 * TILE_SIZE, y: 25.0 * TILE_SIZE }], // Unit 13 (Gentle Monster)
+  ['APEX ATHLETIC PERFORMANCE & YOGA HUB', 16.5, 25, 7, 4, { x: 20 * TILE_SIZE, y: 25 * TILE_SIZE }],
+  ['GENTLE MONSTER & LUXURY EYEWEAR STUDIO', 24, 25, 6, 4, { x: 27 * TILE_SIZE, y: 25 * TILE_SIZE }],
 
   // =========================================================================
   // 4. EAST WING: MACY'S ANCHOR & FASHION GALLERIA (x: 48.0 to 78.0, y: 18.0 to 30.0)
   // Anchored by Macy's, Zara, Uniqlo, Aritzia, Book Nook
   // =========================================================================
-  ['MACY\'S GRAND DEPARTMENT STORE ANCHOR', 66.5, 18.5, 11.0, 11.0, { x: 66.5 * TILE_SIZE, y: 24.0 * TILE_SIZE }], // Unit 14 (Mega Macy's Anchor 11x11)
+  ['MACY\'S WOMEN\'S & CHILDREN\'S ANCHOR', 66, 17, 12, 13, { x: 66 * TILE_SIZE, y: 23.5 * TILE_SIZE }],
 
-  ['MODERN STREETWEAR & RUNWAY DENIM (ZARA)', 49.5, 18.5, 7.5, 4.5, { x: 53.25 * TILE_SIZE, y: 23.0 * TILE_SIZE }], // Unit 15 (Zara)
-  ['MINIMALIST JAPANESE LIFESTYLE (UNIQLO)', 58.0, 18.5, 7.5, 4.5, { x: 61.75 * TILE_SIZE, y: 23.0 * TILE_SIZE }], // Unit 16 (Uniqlo / Muji)
+  ['MODERN STREETWEAR & RUNWAY DENIM (ZARA)', 56.5, 17, 5, 4, { x: 59 * TILE_SIZE, y: 21 * TILE_SIZE }],
+  ['MINIMALIST JAPANESE LIFESTYLE (UNIQLO)', 62, 17, 4, 4, { x: 64 * TILE_SIZE, y: 21 * TILE_SIZE }],
 
-  ['CONTEMPORARY CHIC BOUTIQUE (ARITZIA)', 49.5, 25.0, 7.5, 4.5, { x: 53.25 * TILE_SIZE, y: 25.0 * TILE_SIZE }], // Unit 17 (Aritzia)
-  ['THE BOOK NOOK & LITERARY TEA LOUNGE', 58.0, 25.0, 7.5, 4.5, { x: 61.75 * TILE_SIZE, y: 25.0 * TILE_SIZE }], // Unit 18 (Book Nook)
+  ['CONTEMPORARY CHIC BOUTIQUE (ARITZIA)', 56.5, 25, 5, 4, { x: 59 * TILE_SIZE, y: 25 * TILE_SIZE }],
+  ['THE BOOK NOOK & LITERARY TEA LOUNGE', 62, 25, 4, 4, { x: 64 * TILE_SIZE, y: 25 * TILE_SIZE }],
 
   // =========================================================================
   // 5. THE OUTDOOR DINING PROMENADE & SHOWPLACE ICON CINEMA (x: 48.0 to 78.0, y: 2.0 to 18.0)
   // The iconic Valley Fair 2020 expansion: open-air dining plaza, Eataly, Din Tai Fung,
   // leading right into ShowPlace ICON Cinema multiplex & rooftop lounge!
   // =========================================================================
-  ['EATALY 3-STORY ITALIAN MARKETPLACE', 49.0, 2.5, 8.5, 6.5, { x: 53.25 * TILE_SIZE, y: 9.0 * TILE_SIZE }], // Unit 19 (Eataly Food Hall)
-  ['DIN TAI FUNG DUMPLING HOUSE', 58.5, 2.5, 7.5, 6.5, { x: 62.25 * TILE_SIZE, y: 9.0 * TILE_SIZE }], // Unit 20 (Din Tai Fung)
-  ['SHOWPLACE ICON CINEMA & ROOFTOP LOUNGE', 67.0, 2.5, 10.5, 8.5, { x: 72.25 * TILE_SIZE, y: 11.0 * TILE_SIZE }], // Unit 21 (ShowPlace ICON Cinema 10.5x8.5)
+  ['EATALY 3-STORY ITALIAN MARKETPLACE', 32, 4, 8, 7, { x: 36 * TILE_SIZE, y: 11 * TILE_SIZE }],
+  ['DIN TAI FUNG DUMPLING HOUSE', 40.5, 7, 7, 5, { x: 44 * TILE_SIZE, y: 12 * TILE_SIZE }],
+  ['ALAMO DRAFTHOUSE 10-SCREEN CINEMA', 58, 31, 14, 10, { x: 65 * TILE_SIZE, y: 31 * TILE_SIZE }],
 
-  ['RAMEN NAGI TOKYO GOURMET BAR', 49.0, 10.5, 7.0, 5.0, { x: 52.5 * TILE_SIZE, y: 10.5 * TILE_SIZE }], // Unit 22 (Ramen Nagi)
-  ['TIGER BOBA & ARTISAN MATCHA LOUNGE', 57.0, 10.5, 5.0, 5.0, { x: 59.5 * TILE_SIZE, y: 10.5 * TILE_SIZE }], // Unit 23 (SomiSomi Boba)
-  ['SHAKE SHACK BURGER & CONCRETE PAVILION', 63.0, 12.0, 6.5, 4.5, { x: 66.25 * TILE_SIZE, y: 12.0 * TILE_SIZE }], // Unit 24 (Shake Shack)
+  ['RAMEN NAGI TOKYO GOURMET BAR', 32, 12, 5, 4, { x: 34.5 * TILE_SIZE, y: 16 * TILE_SIZE }],
+  ['TIGER BOBA & ARTISAN MATCHA LOUNGE', 37.5, 12, 4, 4, { x: 39.5 * TILE_SIZE, y: 16 * TILE_SIZE }],
+  ['SHAKE SHACK BURGER & CONCRETE PAVILION', 42, 12.5, 4, 4, { x: 44 * TILE_SIZE, y: 16.5 * TILE_SIZE }],
 
   // =========================================================================
   // 6. SOUTH WING: ENTERTAINMENT, ROUND 1 & BOTANICAL (x: 32.0 to 48.0, y: 30.0 to 46.0)
   // Round 1 Arcade & Bowling, LEGO Play Lab, Urban Outfitters, Celestial Botanical
   // =========================================================================
-  ['NEON CYBER VR & ARCADE ARENA (ROUND 1)', 31.5, 31.0, 7.0, 6.5, { x: 38.5 * TILE_SIZE, y: 34.25 * TILE_SIZE }], // Unit 25 (Round 1 Arcade)
-  ['TOY BOX WONDERLAND & LEGO LAB', 41.5, 31.0, 7.0, 6.5, { x: 41.5 * TILE_SIZE, y: 34.25 * TILE_SIZE }], // Unit 26 (LEGO Lab)
+  ['BOWLERO & NEON ARCADE ARENA', 44, 33, 7, 7, { x: 47.5 * TILE_SIZE, y: 33 * TILE_SIZE }],
+  ['TOY BOX WONDERLAND & LEGO LAB', 36, 33, 7, 6, { x: 39.5 * TILE_SIZE, y: 33 * TILE_SIZE }],
 
-  ['CELESTIAL LIVING & BOTANICAL OASIS', 31.5, 38.5, 7.0, 6.0, { x: 38.5 * TILE_SIZE, y: 41.5 * TILE_SIZE }], // Unit 27 (Botanical Sanctuary)
-  ['URBAN OUTFITTERS & STREET LIFESTYLE', 41.5, 38.5, 7.0, 6.0, { x: 41.5 * TILE_SIZE, y: 41.5 * TILE_SIZE }]  // Unit 28 (Urban Outfitters)
+  ['MACY\'S MEN\'S & HOME ANCHOR', 18, 32, 13, 11, { x: 24.5 * TILE_SIZE, y: 32 * TILE_SIZE }],
+  ['URBAN OUTFITTERS & STREET LIFESTYLE', 31.5, 33, 4, 6, { x: 33.5 * TILE_SIZE, y: 33 * TILE_SIZE }]
 ];
 
 // Major Grand Architectural Entrances to Westfield Valley Fair
 export const ENTRANCES = [
-  { name: 'North Luxury Grand Portal & Valet', x: 40.0 * TILE_SIZE, y: 1.5 * TILE_SIZE },
-  { name: 'East Winchester Galleria Gateway', x: 78.5 * TILE_SIZE, y: 24.0 * TILE_SIZE },
-  { name: 'West Stevens Creek Grand Court Portal', x: 1.5 * TILE_SIZE, y: 24.0 * TILE_SIZE },
-  { name: 'South Fashion Promenade & Garage Gateway', x: 40.0 * TILE_SIZE, y: 46.5 * TILE_SIZE },
-  { name: 'Outdoor Dining Promenade Plaza Portal', x: 78.0 * TILE_SIZE, y: 10.0 * TILE_SIZE }
+  { name: 'Forest Avenue / Nordstrom Entry', x: 10 * TILE_SIZE, y: 7 * TILE_SIZE },
+  { name: 'Monroe Garage / Macy\'s Entry', x: 78.5 * TILE_SIZE, y: 23 * TILE_SIZE },
+  { name: 'Winchester Entry', x: 2 * TILE_SIZE, y: 23 * TILE_SIZE },
+  { name: 'Stevens Creek / Macy\'s Men\'s Entry', x: 25 * TILE_SIZE, y: 44 * TILE_SIZE },
+  { name: 'Luxury & Restaurant Collection Entry', x: 50 * TILE_SIZE, y: 11.5 * TILE_SIZE }
 ];

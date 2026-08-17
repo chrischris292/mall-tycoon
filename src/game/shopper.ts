@@ -1,5 +1,4 @@
-import { ShopperAgent, StoreInstance, FloatingEffect } from './types';
-import { ENTRANCES, UNITS_LIST } from './constants';
+import { ShopperAgent, StoreInstance, FloatingEffect, MallEntrance } from './types';
 import { findHallwayPath } from './pathfinding';
 import { playCashSound, playArcadeSound } from './sound';
 
@@ -10,16 +9,22 @@ const SHIRT_COLORS = [
 const SKIN_COLORS = ['#ffdfc4', '#f0c8a0', '#dfaa7c', '#bb8054', '#8d5524'];
 const HAIR_COLORS = ['#2c1810', '#1c1c1c', '#7d4427', '#c9933b', '#6d6875', '#e6c280'];
 
-export function createShopperAgent(stores: StoreInstance[]): ShopperAgent {
-  const entrance = ENTRANCES[Math.floor(Math.random() * ENTRANCES.length)];
+export function createShopperAgent(stores: StoreInstance[], entrances: MallEntrance[]): ShopperAgent | null {
+  const availableEntrances = entrances.filter((entry) => entry.mode !== 'exit');
+  if (!availableEntrances.length) return null;
+  const entrance = availableEntrances[Math.floor(Math.random() * availableEntrances.length)];
+  const thresholdX = (entrance.x + 0.5) * 32;
+  const thresholdY = (entrance.y + 0.5) * 32;
+  const outsideOffset = entrance.side === 'west' ? { x: -24, y: 0 } : entrance.side === 'east' ? { x: 24, y: 0 } : entrance.side === 'north' ? { x: 0, y: -24 } : { x: 0, y: 24 };
   const id = `shopper_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`;
+  entrance.visitorsEntered += 1;
 
   const shopper: ShopperAgent = {
     id,
-    x: entrance.x + (Math.random() * 8 - 4),
-    y: entrance.y + (Math.random() * 8 - 4),
-    targetX: entrance.x,
-    targetY: entrance.y,
+    x: thresholdX + outsideOffset.x + (Math.random() * 6 - 3),
+    y: thresholdY + outsideOffset.y + (Math.random() * 6 - 3),
+    targetX: thresholdX,
+    targetY: thresholdY,
     currentPath: [],
     pathIndex: 0,
     state: 'spawning',
@@ -34,6 +39,7 @@ export function createShopperAgent(stores: StoreInstance[]): ShopperAgent {
     walkCycle: Math.random() * 100,
     targetStoreId: null,
     targetAmenityId: null,
+    targetEntranceId: entrance.id,
     assignedTableId: null,
     assignedSeatId: null,
     timer: 0,
@@ -43,11 +49,11 @@ export function createShopperAgent(stores: StoreInstance[]): ShopperAgent {
     dead: false
   };
 
-  decideNextShopperDestination(shopper, stores);
+  decideNextShopperDestination(shopper, stores, entrances);
   return shopper;
 }
 
-export function decideNextShopperDestination(shopper: ShopperAgent, stores: StoreInstance[]) {
+export function decideNextShopperDestination(shopper: ShopperAgent, stores: StoreInstance[], entrances: MallEntrance[]) {
   // Clean up any previously occupied seats or queue references
   if (shopper.targetStoreId) {
     const prevStore = stores.find(s => s.id === shopper.targetStoreId);
@@ -72,7 +78,10 @@ export function decideNextShopperDestination(shopper: ShopperAgent, stores: Stor
   if (stores.length > 0 && Math.random() < 0.88 && shopper.visitedCount < 6) {
     const candidateStores: StoreInstance[] = [];
     stores.forEach(st => {
-      let weight = Math.max(1, Math.round(st.tenant.draw * (st.level * 0.9)));
+      const priceDraw = st.priceStrategy === 'value' ? 1.25 : st.priceStrategy === 'premium' ? 0.78 : 1;
+      const promotionDraw = st.promotionTicks > 0 ? 1.7 : 1;
+      const stockDraw = st.inventoryLevel < 15 ? 0.25 : 1;
+      let weight = Math.max(1, Math.round(st.tenant.draw * (st.level * 0.9) * priceDraw * promotionDraw * stockDraw));
 
       // If Cinema is currently selling tickets for showtime, draw is boosted!
       if (st.cinemaState && st.cinemaState.phase === 'box_office_open') {
@@ -96,17 +105,23 @@ export function decideNextShopperDestination(shopper: ShopperAgent, stores: Stor
 
   // 2. If finished shopping, navigate to an entrance/exit
   if (shopper.visitedCount > 0 && Math.random() < 0.75) {
-    const exit = ENTRANCES[Math.floor(Math.random() * ENTRANCES.length)];
-    shopper.currentPath = findHallwayPath(shopper.x, shopper.y, exit.x, exit.y);
+    const exits = entrances.filter((entry) => entry.mode !== 'entrance');
+    const exit = exits[Math.floor(Math.random() * exits.length)];
+    if (!exit) return;
+    const exitX = (exit.x + 0.5) * 32;
+    const exitY = (exit.y + 0.5) * 32;
+    shopper.currentPath = findHallwayPath(shopper.x, shopper.y, exitX, exitY);
     shopper.pathIndex = 0;
     shopper.state = 'exiting_mall';
     shopper.targetStoreId = null;
+    shopper.targetEntranceId = exit.id;
     return;
   }
 
   // 3. Otherwise wander along concourse / outdoor promenade
-  const randomEntrance = ENTRANCES[Math.floor(Math.random() * ENTRANCES.length)];
-  shopper.currentPath = findHallwayPath(shopper.x, shopper.y, randomEntrance.x, randomEntrance.y);
+  const randomEntrance = entrances[Math.floor(Math.random() * entrances.length)];
+  if (!randomEntrance) return;
+  shopper.currentPath = findHallwayPath(shopper.x, shopper.y, (randomEntrance.x + 0.5) * 32, (randomEntrance.y + 0.5) * 32);
   shopper.pathIndex = 0;
   shopper.state = 'navigating_hallway';
   shopper.targetStoreId = null;
@@ -117,7 +132,8 @@ export function updateShopperAgent(
   stores: StoreInstance[],
   floatingFx: FloatingEffect[],
   speedMultiplier: number,
-  onSale: (amount: number) => void
+  onSale: (amount: number) => void,
+  entrances: MallEntrance[]
 ) {
   shopper.walkCycle += 0.28 * speedMultiplier;
 
@@ -136,6 +152,8 @@ export function updateShopperAgent(
 
     if (shopper.currentPath.length === 0 || shopper.pathIndex >= shopper.currentPath.length) {
       if (shopper.state === 'exiting_mall') {
+        const exit = entrances.find((entry) => entry.id === shopper.targetEntranceId);
+        if (exit) exit.visitorsExited += 1;
         shopper.dead = true;
       } else if (targetStore) {
         // Arrived at store doorway -> Enter store
@@ -144,7 +162,7 @@ export function updateShopperAgent(
         shopper.targetX = queueSlot ? queueSlot.x : targetStore.interior.counter.registerX;
         shopper.targetY = queueSlot ? queueSlot.y : targetStore.interior.counter.registerY + 14;
       } else {
-        decideNextShopperDestination(shopper, stores);
+        decideNextShopperDestination(shopper, stores, entrances);
       }
       return;
     }
@@ -178,7 +196,7 @@ export function updateShopperAgent(
   if (shopper.state === 'entering_store') {
     const store = stores.find(s => s.id === shopper.targetStoreId);
     if (!store) {
-      decideNextShopperDestination(shopper, stores);
+      decideNextShopperDestination(shopper, stores, entrances);
       return;
     }
 
@@ -209,13 +227,13 @@ export function updateShopperAgent(
   if (shopper.state === 'in_queue') {
     const store = stores.find(s => s.id === shopper.targetStoreId);
     if (!store) {
-      decideNextShopperDestination(shopper, stores);
+      decideNextShopperDestination(shopper, stores, entrances);
       return;
     }
 
     const qIdx = store.currentQueue.indexOf(shopper.id);
     if (qIdx === -1) {
-      decideNextShopperDestination(shopper, stores);
+      decideNextShopperDestination(shopper, stores, entrances);
       return;
     }
 
@@ -261,7 +279,7 @@ export function updateShopperAgent(
   if (shopper.state === 'ordering_at_counter') {
     const store = stores.find(s => s.id === shopper.targetStoreId);
     if (!store) {
-      decideNextShopperDestination(shopper, stores);
+      decideNextShopperDestination(shopper, stores, entrances);
       return;
     }
 
@@ -349,7 +367,7 @@ export function updateShopperAgent(
   if (shopper.state === 'waiting_for_showtime') {
     const store = stores.find(s => s.id === shopper.targetStoreId);
     if (!store || !store.cinemaState) {
-      decideNextShopperDestination(shopper, stores);
+      decideNextShopperDestination(shopper, stores, entrances);
       return;
     }
 
@@ -387,7 +405,7 @@ export function updateShopperAgent(
   if (shopper.state === 'watching_movie') {
     const store = stores.find(s => s.id === shopper.targetStoreId);
     if (!store || !store.cinemaState) {
-      decideNextShopperDestination(shopper, stores);
+      decideNextShopperDestination(shopper, stores, entrances);
       return;
     }
 
@@ -425,7 +443,7 @@ export function updateShopperAgent(
   if (shopper.state === 'leaving_store') {
     const dist = Math.hypot(shopper.targetX - shopper.x, shopper.targetY - shopper.y);
     if (dist < 6) {
-      decideNextShopperDestination(shopper, stores);
+      decideNextShopperDestination(shopper, stores, entrances);
     } else {
       const step = shopper.speed * speedMultiplier;
       shopper.x += ((shopper.targetX - shopper.x) / dist) * step;
@@ -452,7 +470,9 @@ function completeStoreTransaction(
 ) {
   const tierData = store.tenant.upgrades.find(u => u.tier === store.level);
   const revMultiplier = tierData ? tierData.revenueMultiplier : (1 + (store.level - 1) * 0.45);
-  let totalSale = Math.round((store.tenant.baseIncome * revMultiplier) + Math.random() * 16);
+  const priceMultiplier = store.priceStrategy === 'value' ? 0.84 : store.priceStrategy === 'premium' ? 1.28 : 1;
+  const stockMultiplier = store.inventoryLevel <= 0 ? 0.35 : store.inventoryLevel < 20 ? 0.72 : 1;
+  let totalSale = Math.round(((store.tenant.baseIncome * revMultiplier) + Math.random() * 16) * priceMultiplier * stockMultiplier);
 
   if (store.tenant.id === 'cinema' && store.cinemaState) {
     totalSale = store.cinemaState.ticketPrice + 12; // Ticket + popcorn combo
@@ -462,6 +482,9 @@ function completeStoreTransaction(
 
   store.totalRevenue += totalSale;
   store.shoppersServed += 1;
+  store.inventoryLevel = Math.max(0, store.inventoryLevel - (store.tenant.cat === 'Food' ? 2.8 : 1.7));
+  const satisfactionShift = store.priceStrategy === 'value' ? 0.18 : store.priceStrategy === 'premium' ? -0.1 : 0.05;
+  store.customerSatisfaction = Math.max(35, Math.min(100, store.customerSatisfaction + satisfactionShift));
   shopper.visitedCount += 1;
   shopper.hasBag = true;
 
