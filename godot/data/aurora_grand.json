@@ -1,0 +1,21 @@
+{
+  "id": "aurora_grand",
+  "name": "Aurora Grand",
+  "starting_cash": 28000,
+  "corridors": [
+    { "id": "main_gallery", "center": [0, 0], "size": [48, 7.2], "material": "terrazzo" },
+    { "id": "center_court", "center": [0, 0], "size": [12, 12], "material": "atrium" }
+  ],
+  "entrances": [
+    { "id": "west", "name": "West Gallery", "position": [-25.5, 0], "facing": 90 },
+    { "id": "east", "name": "East Gallery", "position": [25.5, 0], "facing": -90 }
+  ],
+  "stores": [
+    { "name": "LUMINA", "category": "Fashion", "position": [-17, -7] },
+    { "name": "JUNIPER", "category": "Cafe", "position": [-8, -7] },
+    { "name": "QUANTUM", "category": "Technology", "position": [8, -7] },
+    { "name": "KINETIC", "category": "Entertainment", "position": [17, -7] },
+    { "name": "MAISON", "category": "Luxury", "position": [-13, 7] },
+    { "name": "MARKET HALL", "category": "Dining", "position": [13, 7] }
+  ]
+}
