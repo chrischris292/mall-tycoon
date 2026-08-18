@@ -1,0 +1,23 @@
+{
+  "layout_schema_version": 3,
+  "blueprint_id": "invalid_duplicate_id",
+  "display_name": "Invalid Duplicate ID",
+  "cell_size_meters": 2,
+  "corridors": [
+    {
+      "id": "duplicate",
+      "kind": "orthogonal",
+      "points": [[0, 0], [4, 0]],
+      "width_cells": 3
+    }
+  ],
+  "courts": [
+    {
+      "id": "duplicate",
+      "polygon": [[0, 2], [4, 2], [4, 6], [0, 6]]
+    }
+  ],
+  "lots": [],
+  "entrances": [],
+  "expansion_ports": []
+}

@@ -1,0 +1,16 @@
+{
+  "layout_schema_version": 3,
+  "blueprint_id": "invalid_self_intersecting_polygon",
+  "display_name": "Invalid Self Intersecting Polygon",
+  "cell_size_meters": 2,
+  "corridors": [],
+  "courts": [
+    {
+      "id": "bowtie",
+      "polygon": [[0, 0], [4, 4], [0, 4], [4, 0]]
+    }
+  ],
+  "lots": [],
+  "entrances": [],
+  "expansion_ports": []
+}

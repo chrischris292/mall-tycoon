@@ -1,0 +1,33 @@
+{
+  "id": "aurora_starter",
+  "name": "Aurora Starter Promenade",
+  "schema_family": "legacy_v2_snapshot",
+  "source": "godot/data/aurora_grand.json",
+  "notes": "Captured for B2-03 migration tests. This intentionally preserves the old rectangle corridor/store-position shape instead of the v3 layout_schema_version contract.",
+  "corridors": [
+    {
+      "id": "west_entry",
+      "center": [-24.0, 0.0],
+      "size": [18.0, 8.0],
+      "axis": "x",
+      "material": "terrazzo"
+    },
+    {
+      "id": "center_court",
+      "center": [-9.0, 0.0],
+      "size": [12.0, 12.0],
+      "axis": "c",
+      "material": "atrium"
+    }
+  ],
+  "stores": [
+    {
+      "name": "Horizon Quantum Tech",
+      "category": "Technology",
+      "lot_type": "flagship",
+      "size": [8.5, 6.5],
+      "position": [-25.0, -7.8],
+      "facing": "north"
+    }
+  ]
+}

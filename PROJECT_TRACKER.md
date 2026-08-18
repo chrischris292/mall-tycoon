@@ -295,7 +295,7 @@ Agents must take the first incomplete milestone whose dependencies are complete.
 - Evidence: no experimental B2 code was retained during planning; the existing playable prototype remains unchanged.
 - Next: B2-01.
 
-###### B2-01 — Characterization Tests and Schema Fixture `[ ]`
+###### B2-01 — Characterization Tests and Schema Fixture `[complete 2026-08-17]`
 
 - **Depends on:** B2-00.
 - **Scope:** document current hallway/store/save behavior without changing it; add minimal headless test entry points and v3 fixture files.
@@ -303,22 +303,32 @@ Agents must take the first incomplete milestone whose dependencies are complete.
 - **Deliverables:** fixtures for connected run, disconnected run, corner, T-junction, two entrances, valid lot frontage, orphaned door, overlap, and save round-trip; current v2 prototype fixture captured for migration.
 - **Acceptance:** fixtures load deterministically; invalid fixtures state the expected error code; headless test command exits nonzero on failure.
 - **Do not:** change rendering, input, `aurora_grand.json`, shoppers, or `main.gd` behavior.
+- **Completed evidence:** added the B2 layout fixture directory, a pure `layout_schema.gd` v3 validation skeleton, and `godot/tests/layout/test_layout_schema.gd`. Fixture coverage now includes Cedar Grove minimal connected run, disconnected run, T-junction, two entrances, valid lot frontage, orphan/missing connector, overlapping lots, non-integer coordinates, unknown enum, self-intersecting polygon, and a captured legacy Aurora v2 snapshot for the future migration milestone.
+- **Verification:** `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_schema.gd` passed.
+- **Next:** B2-02.
 
-###### B2-02 — Extract Authoritative Layout State `[ ]`
+###### B2-02 — Extract Authoritative Layout State `[complete 2026-08-17]`
 
 - **Depends on:** B2-01.
 - **Scope:** create pure `LayoutState`, stable ID registries, coordinate conversion, immutable-ish snapshots/state hashing, and typed object dictionaries/resources.
 - **Deliverables:** state can add/query/remove corridors, courts, lots, doors, entrances, parcels, and expansion ports without scene nodes; old game can still run using its current path.
 - **Acceptance:** duplicate IDs fail; cell/world round trips are exact; two equivalent states produce the same hash; unit tests cover every object type.
 - **Do not:** add the new UI or render new meshes.
+- **Completed evidence:** added pure `LayoutState`, `LayoutCoordinates`, and `LayoutTestFactory` scripts under `godot/scripts/layout/`. The state supports add/query/remove for corridors, courts, lots, entrances, and expansion ports, enforces stable IDs across collections, provides exact cell/world conversion, and produces order-independent canonical hashes.
+- **Verification:** `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_state.gd` passed.
+- **Next:** B2-03.
 
-###### B2-03 — Schema v3 Codec and Legacy Migration `[ ]`
+###### B2-03 — Schema v3 Codec and Legacy Migration `[complete 2026-08-17]`
 
 - **Depends on:** B2-02.
 - **Scope:** freeze v3 field names; parse/serialize; embed layout snapshots in business saves; implement a deliberate v2-to-v3 migration.
 - **Migration rule:** old rectangle corridors become explicit orthogonal segments/courts where unambiguous. Old stores receive a computed frontage only if one unique corridor edge is adjacent; ambiguous stores become flagged legacy lots requiring repair, never silently guessed.
 - **Acceptance:** all valid fixtures round-trip; corrupt references fail safely; a copied legacy save loads without losing economy/store stats; migration writes a newer save only after successful validation and retains backup.
 - **Do not:** delete old codec paths until migration tests pass.
+- **Completed evidence:** added standalone `layout_save_codec.gd` for v3 parse/serialize and legacy v2 blueprint migration tests. Valid v3 fixtures parse and serialize back through `LayoutState` with stable hashes, invalid v3 fixtures fail without returning state, and the captured legacy Aurora snapshot migrates into v3-shaped data with old lots flagged `legacy_repair_required`.
+- **Important scope note:** production business saves and the live `main.gd` load path are intentionally unchanged; backup/write behavior belongs in the later integration step, not this standalone codec milestone.
+- **Verification:** `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_save_codec.gd` passed.
+- **Next:** B2-04.
 
 ###### B2-04 — Orthogonal Corridor Rasterizer and Graph `[ ]`
 
@@ -526,14 +536,49 @@ If a milestone cannot finish in one quota window, split only by its listed deliv
 ## 6. Session Handoff
 
 - **Last active branch**: `main`
-- **Last known status**: Phase A remains partially implemented and playable. Owner priority has moved to Project B2, Mall Layout Builder 2.0. B2 is fully specified for mobile-only implementation, but no B2 production code has started. The current 6×6 hallway builder and Aurora Starter Promenade remain a prototype compatibility path, not an architecture to extend.
-- **Most recently completed phase/task**: B2-00 — froze the mobile product contract, hybrid grid/flexible geometry decisions, code boundaries, schema concepts, touch UX, invariants, Cedar Grove starter contract, milestone queue, and resumable handoff format.
+- **Last known status**: Phase A remains partially implemented and playable. Owner priority has moved to Project B2, Mall Layout Builder 2.0. B2 now has completed schema fixtures, pure authoritative layout state, coordinate conversion, state hashing, and a standalone v3 save codec with legacy v2 migration tests. The rasterizer/graph, renderer, mobile builder UI, navigation replacement, and Cedar Grove vertical slice have not started. The current 6×6 hallway builder and Aurora Starter Promenade remain a prototype compatibility path, not an architecture to extend.
+- **Most recently completed phase/task**: B2-03 — added standalone schema v3 parse/serialize and conservative legacy v2 migration tests without changing production save/load or `main.gd`.
 - **Known partial work**: The prototype still permits “near enough” rectangle connections, infers store frontage from map position, uses isolated tap-to-place tiles, and lacks authoritative graph/nav validation. These are documented replacement targets. Unrelated Phase A safe-area/HUD polish remains incomplete but is not the next owner priority.
-- **Recommended next task**: B2-01 — add characterization tests and v3 schema fixtures only. Do not change rendering, input, shoppers, starter data, or `main.gd` behavior in that milestone.
+- **Recommended next task**: B2-04 — implement the orthogonal corridor rasterizer and reachability graph for centerline segments, widths, endpoint snapping, corners, T/cross junctions, occupied cells, public-surface polygons, and deterministic graph connectivity.
 - **Verification command to run next**:
   ```bash
-  /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --log-file /private/tmp/aurora-b2-01.log --editor --quit
+  /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_schema.gd
+  /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_state.gd
+  /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_save_codec.gd
   ```
+
+B2 milestone: B2-01
+Status: complete
+Files changed: `godot/scripts/layout/layout_schema.gd`, `godot/tests/layout/test_layout_schema.gd`, `godot/data/layout_fixtures/*.json`, `PROJECT_TRACKER.md`
+Schema/save version impact: introduced a v3 validation skeleton and fixtures only; no production saves or legacy load paths were changed.
+Tests added and exact command: `godot/tests/layout/test_layout_schema.gd`; run with `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_schema.gd`
+Godot preview command and result: not launched; B2-01 is headless infrastructure with no visual/gameplay change.
+Touch resolutions tested: none; no touch UI changed.
+Known limitations (facts, not future ideas): schema validation is intentionally structural; graph reachability, frontage adjacency, save round-trip serialization, and command mutation checks begin in later B2 milestones.
+First incomplete acceptance item: B2-02 `LayoutState` extraction has not started.
+Recommended next task ID: B2-02
+
+B2 milestone: B2-02
+Status: complete
+Files changed: `godot/scripts/layout/layout_coordinates.gd`, `godot/scripts/layout/layout_state.gd`, `godot/scripts/layout/layout_test_factory.gd`, `godot/tests/layout/test_layout_state.gd`, `PROJECT_TRACKER.md`
+Schema/save version impact: no production save changes; pure state uses the v3 object categories established by B2-01.
+Tests added and exact command: `godot/tests/layout/test_layout_state.gd`; run with `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_state.gd`
+Godot preview command and result: not launched; B2-02 is non-visual engine infrastructure with no gameplay scene change.
+Touch resolutions tested: none; no touch UI changed.
+Known limitations (facts, not future ideas): state objects are still dictionaries, not final typed resources; graph reachability, renderer integration, command history, production save migration, and topology validation are not implemented.
+First incomplete acceptance item: B2-03 schema v3 codec and legacy migration has not started.
+Recommended next task ID: B2-03
+
+B2 milestone: B2-03
+Status: complete
+Files changed: `godot/scripts/layout/layout_save_codec.gd`, `godot/tests/layout/test_layout_save_codec.gd`, `godot/scripts/layout/layout_schema.gd`, `PROJECT_TRACKER.md`
+Schema/save version impact: v3 parse/serialize exists as standalone infrastructure; live save files and old production codec paths are unchanged. Legacy v2 migration currently creates repair-required v3 lots rather than guessing final frontage.
+Tests added and exact command: `godot/tests/layout/test_layout_save_codec.gd`; run with `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_save_codec.gd`
+Godot preview command and result: not launched; B2-03 is non-visual codec infrastructure with no gameplay scene change.
+Touch resolutions tested: none; no touch UI changed.
+Known limitations (facts, not future ideas): migration does not yet integrate with business saves, write upgraded files, create backups, or prove full economy/store stat preservation; those require production save integration after topology and validation mature.
+First incomplete acceptance item: B2-04 orthogonal corridor rasterizer and graph has not started.
+Recommended next task ID: B2-04
 
 ---
 

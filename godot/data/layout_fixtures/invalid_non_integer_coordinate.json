@@ -1,0 +1,18 @@
+{
+  "layout_schema_version": 3,
+  "blueprint_id": "invalid_non_integer_coordinate",
+  "display_name": "Invalid Non Integer Coordinate",
+  "cell_size_meters": 2,
+  "corridors": [
+    {
+      "id": "main",
+      "kind": "orthogonal",
+      "points": [[0, 0], [4.5, 0]],
+      "width_cells": 3
+    }
+  ],
+  "courts": [],
+  "lots": [],
+  "entrances": [],
+  "expansion_ports": []
+}

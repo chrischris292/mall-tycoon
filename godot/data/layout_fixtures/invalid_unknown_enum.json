@@ -1,0 +1,18 @@
+{
+  "layout_schema_version": 3,
+  "blueprint_id": "invalid_unknown_enum",
+  "display_name": "Invalid Unknown Enum",
+  "cell_size_meters": 2,
+  "corridors": [
+    {
+      "id": "main",
+      "kind": "spiral",
+      "points": [[0, 0], [4, 0]],
+      "width_cells": 3
+    }
+  ],
+  "courts": [],
+  "lots": [],
+  "entrances": [],
+  "expansion_ports": []
+}

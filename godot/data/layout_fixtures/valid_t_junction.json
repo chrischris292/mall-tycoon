@@ -1,0 +1,45 @@
+{
+  "layout_schema_version": 3,
+  "blueprint_id": "valid_t_junction",
+  "display_name": "T Junction Fixture",
+  "cell_size_meters": 2,
+  "corridors": [
+    {
+      "id": "main",
+      "kind": "orthogonal",
+      "points": [[-8, 0], [8, 0]],
+      "width_cells": 3
+    },
+    {
+      "id": "north_branch",
+      "kind": "orthogonal",
+      "points": [[0, 0], [0, -8]],
+      "width_cells": 3
+    }
+  ],
+  "courts": [],
+  "lots": [],
+  "entrances": [
+    {
+      "id": "west_entry",
+      "kind": "street",
+      "exterior_cell": [-12, 0],
+      "interior_cell": [-8, 0],
+      "connects_to": "main"
+    },
+    {
+      "id": "north_entry",
+      "kind": "parking",
+      "exterior_cell": [0, -12],
+      "interior_cell": [0, -8],
+      "connects_to": "north_branch"
+    }
+  ],
+  "expansion_ports": [
+    {
+      "id": "east_future",
+      "cell": [8, 0],
+      "connects_to": "main"
+    }
+  ]
+}

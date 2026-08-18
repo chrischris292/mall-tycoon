@@ -1,0 +1,34 @@
+{
+  "layout_schema_version": 3,
+  "blueprint_id": "invalid_missing_connector",
+  "display_name": "Invalid Missing Connector",
+  "cell_size_meters": 2,
+  "corridors": [
+    {
+      "id": "main",
+      "kind": "orthogonal",
+      "points": [[0, 0], [4, 0]],
+      "width_cells": 3
+    }
+  ],
+  "courts": [],
+  "lots": [
+    {
+      "id": "lot_no_door",
+      "kind": "inline",
+      "tenant_id": "",
+      "footprint": [[0, 2], [4, 2], [4, 6], [0, 6]],
+      "frontage": {
+        "side": "north",
+        "from": [0, 2],
+        "to": [4, 2]
+      },
+      "door": {
+        "cell": [2, 2],
+        "connects_to": ""
+      }
+    }
+  ],
+  "entrances": [],
+  "expansion_ports": []
+}

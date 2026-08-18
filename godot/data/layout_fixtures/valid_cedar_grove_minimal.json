@@ -1,0 +1,83 @@
+{
+  "layout_schema_version": 3,
+  "blueprint_id": "cedar_grove_minimal",
+  "display_name": "Cedar Grove Minimal Fixture",
+  "cell_size_meters": 2,
+  "corridors": [
+    {
+      "id": "west_prom",
+      "kind": "orthogonal",
+      "points": [[-16, 0], [-4, 0]],
+      "width_cells": 3,
+      "material": "terrazzo"
+    },
+    {
+      "id": "east_prom",
+      "kind": "orthogonal",
+      "points": [[-4, 0], [10, 0], [10, 6]],
+      "width_cells": 3,
+      "material": "terrazzo"
+    }
+  ],
+  "courts": [
+    {
+      "id": "garden_court",
+      "polygon": [[-7, -3], [-1, -3], [-1, 3], [-7, 3]]
+    }
+  ],
+  "lots": [
+    {
+      "id": "lot_books",
+      "kind": "inline",
+      "tenant_id": "atlas_books",
+      "footprint": [[-14, -7], [-8, -7], [-8, -2], [-14, -2]],
+      "frontage": {
+        "side": "south",
+        "from": [-14, -2],
+        "to": [-8, -2]
+      },
+      "door": {
+        "cell": [-11, -2],
+        "connects_to": "west_prom"
+      }
+    },
+    {
+      "id": "lot_vacant_01",
+      "kind": "inline",
+      "tenant_id": "",
+      "footprint": [[2, 2], [8, 2], [8, 7], [2, 7]],
+      "frontage": {
+        "side": "north",
+        "from": [2, 2],
+        "to": [8, 2]
+      },
+      "door": {
+        "cell": [5, 2],
+        "connects_to": "east_prom"
+      }
+    }
+  ],
+  "entrances": [
+    {
+      "id": "west_entry",
+      "kind": "street",
+      "exterior_cell": [-20, 0],
+      "interior_cell": [-16, 0],
+      "connects_to": "west_prom"
+    },
+    {
+      "id": "east_entry",
+      "kind": "parking",
+      "exterior_cell": [14, 6],
+      "interior_cell": [10, 6],
+      "connects_to": "east_prom"
+    }
+  ],
+  "expansion_ports": [
+    {
+      "id": "north_future",
+      "cell": [-4, -2],
+      "connects_to": "garden_court"
+    }
+  ]
+}

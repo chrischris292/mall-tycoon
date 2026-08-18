@@ -1,0 +1,49 @@
+{
+  "layout_schema_version": 3,
+  "blueprint_id": "invalid_overlapping_lots",
+  "display_name": "Invalid Overlapping Lots",
+  "cell_size_meters": 2,
+  "corridors": [
+    {
+      "id": "main",
+      "kind": "orthogonal",
+      "points": [[0, 0], [10, 0]],
+      "width_cells": 3
+    }
+  ],
+  "courts": [],
+  "lots": [
+    {
+      "id": "lot_a",
+      "kind": "inline",
+      "tenant_id": "",
+      "footprint": [[0, 2], [6, 2], [6, 7], [0, 7]],
+      "frontage": {
+        "side": "north",
+        "from": [0, 2],
+        "to": [6, 2]
+      },
+      "door": {
+        "cell": [3, 2],
+        "connects_to": "main"
+      }
+    },
+    {
+      "id": "lot_b",
+      "kind": "inline",
+      "tenant_id": "",
+      "footprint": [[4, 3], [9, 3], [9, 8], [4, 8]],
+      "frontage": {
+        "side": "north",
+        "from": [4, 3],
+        "to": [9, 3]
+      },
+      "door": {
+        "cell": [6, 3],
+        "connects_to": "main"
+      }
+    }
+  ],
+  "entrances": [],
+  "expansion_ports": []
+}
