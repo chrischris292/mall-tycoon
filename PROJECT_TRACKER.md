@@ -106,139 +106,108 @@ mall-tycoon/
 
 ---
 
-## 5. Development Roadmap & Milestones
+## 5. Current Project: Living Mall Realism Pass
 
-- [x] **Milestone 1: Project Architecture & Tracker Initialization**
-  - Establish `PROJECT_TRACKER.md` and technical specifications.
-- [x] **Milestone 2: JSON Catalogs & Procedural Audio Engine**
-  - Implement `godot/data/catalogs.json` with all 15+ tenants and 9 amenities.
-  - Implement `godot/scripts/sound_manager.gd` with procedural synthesis.
-- [x] **Milestone 3: Deep 3D Store Interiors & Visual Upgrades**
-  - Expand `main.gd` to render category-specific interior models (Cinema screens, tables, racks, arcade cabs).
-  - Build Tier 1 -> Tier 2 -> Tier 3 visual upgrade transitions.
-- [x] **Milestone 4: Concourse Amenities & Placement System**
-  - Build 3D models for Fountains, Palms, Benches, Kiosks, Restrooms.
-  - Implement interactive placement, demolition, and reputation buffs.
-- [x] **Milestone 5: Enhanced 3D Shoppers & Emotive Visuals**
-  - Implement multi-state shopper simulation (queuing, dining, cinema showtimes).
-  - Add 3D floating revenue labels and thought bubbles.
-- [x] **Milestone 6: Mobile-First Glassmorphic HUD & Touch Navigation**
-  - Build responsive top HUD, bottom drawer system (Directory, Inspector, Architect, Operations, Feed).
-  - Implement smooth 1-finger pan, 2-finger pinch zoom, 2-finger yaw rotation, and tap selection.
-- [x] **Milestone 7: Operations, Accounting & Full Save/Load**
-  - Weekly financial accounting, daily critic reviews/events, sanitation/security actions.
-  - Full game state serialization to `user://aurora_save.json`.
-- [ ] **Milestone 8: Shopper Personalities, Commercial Difficulty & Multi-Size Stores**
-  - 5 Shopper Personalities (💎 Luxury VIP, 🏷️ Bargain Hunter, 📱 Trendsetter, 🍽️ Foodie/Family, ☕ Casual Stroller) with divergent budgets, price elasticity, and in-store browsing trees (`🤔`, `🏷️`, `👗`, `💸`, `😍`).
-  - Mall strategic difficulty: Tenant clustering synergy, duplicate cannibalization penalties (-30%), Mega Anchor foot-traffic halo (+25%), scalable anchor utility rent, and staff payroll burn.
-  - Multi-tier store sizing: Mega Anchors (13.5×9.0), Flagships (8.5×6.5), Standard (7.5×6.0), Boutiques/Kiosks (5.2×5.0).
-  - Dual-lane atrium fountain avoidance routing (zero water basin clipping) and interactive coin-toss/bench resting.
-- [ ] **Milestone 9: Real Tycoon Economy & Tenant Relationships**
-  - Add lease contracts with base rent, revenue share, term length, renewal date, rent burden, and tenant satisfaction.
-  - Model tenant lifecycle states: prospect, open, trending, struggling, at-risk, closing, replaced.
-  - Implement lease negotiation decisions: renew, raise rent, subsidize renovation, replace tenant, or leave vacant.
-  - Add weekly tenant statements that explain why each store is winning or failing.
-- [ ] **Milestone 10: Shopper Demand, Thoughts & Heatmaps**
-  - Expand shopper needs beyond one store visit: hunger, entertainment, comfort, budget, patience, restroom need, and destination intent.
-  - Add visible guest thoughts and complaints inspired by RollerCoaster Tycoon and Parkitect.
-  - Build diagnostic overlays for foot traffic, spend, satisfaction, cleanliness, security, queues, and dead zones.
-  - Feed shopper behavior back into store revenue, tenant satisfaction, reputation, and layout evaluation.
-- [ ] **Milestone 11: Mall Design Strategy**
-  - Make architecture financially meaningful through anchor halos, dead-zone penalties, wing identity, and escalator/elevator traffic routing.
-  - Add adjacency combos: cinema + arcade + food court, luxury + jewelry + beauty, family dining + toy store, tech + cafe + bookstore.
-  - Add duplicate cannibalization and category saturation so tenant mix becomes a strategic puzzle.
-  - Prepare the data model for multi-floor malls, service corridors, vertical transport, and expansion parcels.
-- [ ] **Milestone 12: Staff, Services & Incidents**
-  - Add visible janitors, security guards, maintenance techs, and concierge staff with routes and coverage zones.
-  - Implement staff fatigue, payroll, response times, and break/service rooms.
-  - Add operational incidents: spills, shoplifting, broken escalators, restroom complaints, overcrowded food court, celebrity crowds.
-  - Add service overlays showing uncovered dirty/unsafe/broken areas.
-- [ ] **Milestone 13: Progression, Campaigns & Scenarios**
-  - Add sandbox, career, and challenge modes.
-  - Create scenario starts such as "revive a dying 90s mall", "luxury wing expansion", "holiday season crunch", and "transit hub opening".
-  - Add prestige tiers: Neighborhood Center -> Regional Mall -> Lifestyle Center -> Destination Mall.
-  - Gate unlocks through reputation, cashflow, scenario goals, tenant relationships, and mall size.
-- [ ] **Milestone 14: Events, Culture & Live Mall Identity**
-  - Add seasonal demand curves: holidays, back-to-school, summer tourism, rainy weekends, tax-refund shopping.
-  - Add events and pop-ups: sneaker drop, anime convention, farmers market, fashion show, influencer meet-and-greet.
-  - Add local competition and external shocks: nearby outlet mall, e-commerce slump, transit station opening, construction disruption.
-  - Add news/review systems that explain reputation shifts and create medium-term player decisions.
-- [ ] **Milestone 15: Mobile-First Productization**
-  - Convert dense desktop HUD patterns into thumb-friendly iOS modes: Build, Lease, Manage, Data, Goals.
-  - Add safe-area handling, readable panel density, scalable tap targets, and modal flows for complex choices.
-  - Add settings, save slots, tutorial onboarding, accessibility pass, and performance budgets for iPhone/iPad.
-  - Prepare export pipeline, signing notes, icon requirements, and App Store compliance checklist.
+The previous systems pass is complete enough to stop treating it as the active plan. The new project is to make Aurora Mall Tycoon feel like a living 3D mall, not a set of static boxes with management panels. Future sessions should prioritize animation, readable characters, store-specific gameplay, and gamer-facing customization over adding more abstract numbers.
+
+### Design Target
+
+- **Stores should be miniature attractions.** A movie theater should visibly sell tickets, seat guests, dim lights, run trailers, start a film, and release a crowd. A restaurant should have hosts, cooks, servers, tables, dishes, mess, and bottlenecks. A luxury shop should have display cases, fitting rooms, clerks, VIP visitors, and theft risk.
+- **Staff should look and behave like staff.** Security, janitors, servers, cashiers, concierge, and maintenance workers need uniforms, tools, roles, route logic, and animations.
+- **Incidents should be physical events.** If someone steals, they should become a visible suspect, security should chase them, and the outcome should depend on pathing, distance, staffing, and crowding.
+- **Customization should be game content.** Players need meaningful choices inside each store: layout, counters, displays, service points, registers, kitchens, screens, lighting, staffing stations, decor themes, and premium upgrades.
+- **UI should support creative editing.** Management UI should feel like a clean game tool with Build, Decorate, Staff, Operations, Data, and Store Editor modes rather than giant dense debug drawers.
 
 ---
 
 ## 6. Active Multi-Day Implementation Plan
 
-This is the current priority plan. It is ordered so future sessions can resume from the first incomplete item. Each phase should leave the game playable.
+This is the only active implementation plan. It is ordered so future sessions can resume from the first incomplete item. Each phase must leave the game playable and include a Godot preview when completed.
 
-### Phase A: Tycoon Data Backbone
+### Phase A: Character Visual Upgrade & Animation Foundation
 
-- [ ] Add persistent data structures in `godot/scripts/main.gd` for leases, tenant satisfaction, tenant state, weekly profit/loss, shopper thoughts, and overlay metrics.
-- [ ] Extend `godot/data/catalogs.json` tenant definitions with lease expectations, preferred adjacencies, disliked adjacencies, prestige tier, rent tolerance, and target shopper personalities.
-- [ ] Update save/load to version the new data safely while preserving existing saves.
-- [ ] Add a compact debug/status view in the UI so these values can be inspected while testing.
-- **Done when**: Existing malls load, each store has a lease/economy state, and weekly accounting shows store-level explanations.
+- [ ] Split character visuals into reusable procedural rigs/components for shoppers and staff instead of one generic capsule body.
+- [ ] Give staff distinct uniforms, badges, hats/tools, and role silhouettes: security, janitor, maintenance, concierge, cashier/server.
+- [ ] Add animation states shared by shoppers/staff: idle, walk, browse, queue, pay, sit, eat, talk, clean, repair, chase, flee, serve.
+- [ ] Add simple footstep/bob/tween animation controller with speed-based pose changes.
+- [ ] Add character labels only as optional debugging; normal gameplay should rely on visual identity.
+- **Done when**: A player can identify staff roles and shopper activity from the 3D world without opening UI.
 
-### Phase B: Tenant Contracts & Store Lifecycle
+### Phase B: Physical Security Incidents & Chases
 
-- [ ] Add lease contract generation when a store opens or is loaded from a template.
-- [ ] Add weekly tenant satisfaction calculation from traffic, sales, cleanliness, security, adjacency, rent burden, and category saturation.
-- [ ] Add tenant lifecycle transitions: trending, stable, struggling, at-risk.
-- [ ] Add player actions: renew lease, lower rent, renovate tenant, replace tenant, leave vacant.
-- [ ] Add event feed messages for lease warnings and tenant milestones.
-- **Done when**: At least one tenant can become at-risk for understandable reasons, and the player can respond with a meaningful economic tradeoff.
+- [ ] Replace abstract shoplifting incidents with visible suspect agents spawned from stores or exits.
+- [ ] Add suspect states: browsing suspiciously, stealing, fleeing, caught, escaped.
+- [ ] Add security states: patrol, alerted, chase, intercept, escort.
+- [ ] Add chase routing along corridors only, with catch chance based on distance, crowding, security staffing, and exit proximity.
+- [ ] Add visible outcome feedback: handoff/escort animation, escaped suspect notification, recovered/lost cash.
+- **Done when**: A shoplifting event creates a visible chase that the player can watch and understand.
 
-### Phase C: Shopper Needs & Guest Thoughts
+### Phase C: Restaurant Service Simulation
 
-- [ ] Expand `godot/scripts/shopper.gd` with needs: hunger, comfort, patience, budget, restroom, entertainment, and destination intent.
-- [ ] Add personality-specific behavior: Luxury VIPs value prestige and cleanliness, Bargain Hunters dislike premium pricing, Trendsetters chase new/trending stores, Families need food/restrooms/seating, Casual Strollers browse and use amenities.
-- [ ] Add thought bubbles and event snippets that state the reason behind satisfaction changes.
-- [ ] Feed unmet needs into reputation, dwell time, spend probability, and store ratings.
-- **Done when**: Watching shoppers provides actionable clues about mall layout, tenant mix, pricing, and operations.
+- [ ] Add restaurant-specific actors: cashier/host, kitchen cook, server/runner.
+- [ ] Add physical service stations: order counter, kitchen/prep area, pickup pass, dining tables, trash/mess points.
+- [ ] Add shopper dining flow: queue, order, wait, receive food, sit, eat, leave mess, rate experience.
+- [ ] Add bottlenecks: not enough cashiers, not enough cooks, dirty tables, no seating, slow service.
+- [ ] Add customization controls for restaurants: counter count, kitchen upgrade, table layout, menu pricing, decor theme, staffing mix.
+- **Done when**: Food stores feel operational and players can improve them through layout/staff/equipment choices.
 
-### Phase D: Heatmaps & Diagnostics
+### Phase D: Movie Theater Show Cycle
 
-- [ ] Track grid/corridor samples for foot traffic, spend, cleanliness, safety, wait time, and dead-zone score.
-- [ ] Add a Data drawer with overlay toggles.
-- [ ] Render simple colored floor overlays in Godot without overwhelming mobile performance.
-- [ ] Add summary callouts: "dead wing", "food demand unmet", "security coverage weak", "luxury cluster working".
-- **Done when**: The player can diagnose why a store is failing without reading raw numbers.
+- [ ] Replace static cinema glow with a full showtime loop: ticket sales, lobby queue, concession purchase, auditorium entry, trailer, movie, credits, exit crowd.
+- [ ] Add visible theater elements: box office, concession stand, auditorium doors, screen, seats, posters/showtime board.
+- [ ] Animate lights dimming, screen color changes, trailer/movie phases, and crowd release.
+- [ ] Add gameplay controls: ticket price, show schedule frequency, concession quality, screen upgrade, seating tier, staffing.
+- [ ] Add failure modes: long ticket lines, dirty auditorium, missed showtime, underfilled screening.
+- **Done when**: The cinema is an attraction the player can watch and tune, not just a store with a glowing screen.
 
-### Phase E: Strategic Layout Rules
+### Phase E: Store Interior Customization Engine
 
-- [ ] Implement anchor halo traffic bonuses and distance falloff.
-- [ ] Implement adjacency combo bonuses and duplicate/category saturation penalties.
-- [ ] Apply layout scoring to shopper routing, store draw, tenant satisfaction, and lease renewal chances.
-- [ ] Add UI hints in the Architect/Lease panels showing nearby synergy and cannibalization before placement.
-- **Done when**: Moving or replacing stores can visibly change traffic and weekly profit.
+- [ ] Create a data-driven store layout model for editable interior objects: fixtures, registers, service counters, shelves, tables, screens, decor, staff stations.
+- [ ] Add per-store edit mode with placement grid inside the lot footprint.
+- [ ] Add object categories: revenue fixtures, service fixtures, comfort/decor, operational stations, queue guides.
+- [ ] Add constraints and validation: doors stay clear, staff can reach stations, shoppers can path to fixtures/registers/seats.
+- [ ] Add save/load support for customized interiors.
+- **Done when**: At least one store can be edited internally and its layout changes shopper/staff behavior.
 
-### Phase F: Staff & Incidents
+### Phase F: Store Category Gameplay Packs
 
-- [ ] Add staff units for janitors, security, maintenance, and concierge.
-- [ ] Add route assignment and coverage zones along corridors.
-- [ ] Add incident spawning based on crowd, cleanliness, security, and maintenance pressure.
-- [ ] Add response tasks and consequences if ignored.
-- **Done when**: Operations are spatial and visible, not just buttons that adjust percentages.
+- [ ] Define category modules for Food, Cinema/Entertainment, Luxury/Fashion, Tech/Specialty, Arcade.
+- [ ] Each module should own its actors, props, service flow, upgrade choices, failure states, and animations.
+- [ ] Add category-specific customization:
+  - Food: kitchen stations, tables, menu board, speed/quality tradeoff.
+  - Cinema: auditorium seats, concession, posters, screen tech, show schedule.
+  - Luxury/Fashion: display cases, fitting rooms, stylists, anti-theft gates, VIP lounge.
+  - Tech: demo tables, repair bar, launch stage, product wall.
+  - Arcade: cabinets, prize counter, tournament stage, jackpot machine.
+- [ ] Add UI inspector sections generated from the category module instead of one generic store panel.
+- **Done when**: Different store categories have visibly different gameplay and customization decisions.
 
-### Phase G: Progression & Scenario Layer
+### Phase G: UI Redesign For Creative Management
 
-- [ ] Define scenario metadata in JSON: starting mall, goals, constraints, unlocks, and win/loss conditions.
-- [ ] Add goal tracker UI and victory/summary panel.
-- [ ] Create at least three scenarios: starter neighborhood mall, revive a dying mall, holiday rush.
-- [ ] Add prestige tiers and unlock rules for tenants, amenities, facade styles, and expansion size.
-- **Done when**: A new player has a guided reason to keep playing for multiple sessions.
+- [ ] Replace the current dense drawer stack with a cleaner mode-based UI: Select, Build, Store Edit, Staff, Operations, Data, Goals.
+- [ ] Add a contextual store editor panel with tabs: Layout, Staff, Pricing, Upgrades, Decor, Issues.
+- [ ] Add icon buttons, compact toolbars, object palettes, and clearer mobile-friendly touch targets.
+- [ ] Add visual selection outlines and ghost previews for placeable objects.
+- [ ] Add issue cards that point to physical causes: "register line too long", "server cannot reach table", "security too far from luxury wing".
+- **Done when**: Editing stores and responding to problems feels like a polished game workflow rather than a debug menu.
 
-### Phase H: iOS Product Pass
+### Phase H: Mall Atmosphere & Environmental Life
 
-- [ ] Replace dense desktop drawers with mode-based mobile UX: Build, Lease, Manage, Data, Goals.
-- [ ] Audit tap target sizes, safe-area behavior, text fit, and camera gestures.
-- [ ] Add tutorial prompts for first build, first lease, first incident, first heatmap, and first weekly report.
-- [ ] Profile scene complexity and shopper count for mobile performance.
-- **Done when**: The game can be demoed as an iPad-first tycoon prototype.
+- [ ] Add ambient mall behaviors: groups chatting, window-shopping, sitting, looking at directory, taking photos, carrying bags/food.
+- [ ] Add lighting moods: morning, afternoon, evening, closed-hours cleaning, cinema glow, restaurant warmth.
+- [ ] Add store exterior improvements: animated signs, window displays, open/closed indicators, queues visibly outside entrances.
+- [ ] Add richer sound hooks: crowd murmur, cleaning, register beeps, cinema trailer rumble, restaurant kitchen sounds, arcade ambience.
+- [ ] Add camera polish: smooth follow/inspect mode, cinematic event focus for incidents and major store moments.
+- **Done when**: The mall feels alive even when the player is not clicking anything.
+
+### Phase I: Balancing, Performance & iOS Readiness
+
+- [ ] Profile shopper/staff/prop counts on the GL Compatibility renderer and set budgets for iPhone/iPad.
+- [ ] Add LOD/simplification rules for characters, props, thought bubbles, and animations.
+- [ ] Add scenario playtest checklist: frame rate, readability, UI fit, tap accuracy, save/load stability.
+- [ ] Tune event frequencies so the game feels busy but not chaotic.
+- [ ] Update `PROJECT_TRACKER.md` after each completed phase with verification and preview notes.
+- **Done when**: The richer simulation remains smooth and readable on the target mobile performance budget.
 
 ---
 
@@ -246,11 +215,11 @@ This is the current priority plan. It is ordered so future sessions can resume f
 
 Use these pillars to choose between competing implementation options:
 
-1. **Every store is a business relationship.** Tenants should have needs, leverage, expectations, and consequences.
-2. **Every hallway is a traffic decision.** Layout should affect who walks where, who spends, and which stores survive.
-3. **Every shopper is feedback.** The player should learn by watching guests and reading their thoughts, not only by studying tables.
-4. **Every system should be visible.** Cleanliness, safety, popularity, rent stress, and dead zones need clear world/UI feedback.
-5. **Mobile first, deep always.** The game should become complex through layers, not through overwhelming panels.
+1. **Every store is a tiny world.** A store should have actors, props, service flow, visible bottlenecks, and category-specific customization.
+2. **Every incident is physical.** Theft, mess, repairs, and crowds should appear in the world and be solved by visible staff behavior.
+3. **Every character reads at a glance.** Shoppers and staff need silhouettes, tools, uniforms, animations, and intent.
+4. **Every customization changes behavior.** Counters, displays, tables, registers, screens, decor, and staff stations must alter routing, revenue, satisfaction, or risk.
+5. **Mobile first, alive always.** The richer simulation must remain readable and performant on iPhone/iPad.
 
 ### Tycoon Reference Lessons
 
@@ -259,6 +228,8 @@ Use these pillars to choose between competing implementation options:
 - **Project Highrise / SimTower**: Tenant contracts, rent pressure, vertical expansion, and service infrastructure create long-term planning.
 - **Mega Mall Story**: Store combinations, prestige, tenant mix, and unlocks make malls feel collectible and optimizable.
 - **Cities: Skylines**: Overlays are essential; complex simulations become playable when the player can see the invisible systems.
+- **Prison Architect / RimWorld**: Small agent stories, jobs, interruptions, and physical tasks make simple visuals feel alive.
+- **Planet Coaster / Planet Zoo**: Guests, shops, staff, queues, and scenery become compelling when the player can see cause and effect in-world.
 
 ---
 
@@ -267,10 +238,10 @@ Use these pillars to choose between competing implementation options:
 At the end of any substantial AI session, update this block or append directly below it.
 
 - **Last active branch**: `main`
-- **Last known status**: Roadmap expanded for multi-day tycoon depth planning. Next implementation should begin with Phase A unless the user reprioritizes.
-- **Most recently completed phase/task**: Planning update only.
-- **Known partial work**: None in this tracker update.
-- **Recommended next task**: Implement Phase A data backbone in Godot and verify save/load compatibility.
+- **Last known status**: The old A-H systems plan has been removed from the active plan. The new active project is the Living Mall Realism Pass, focused on visual richness, animation, physical incidents, store-specific service flows, and gamer-facing customization.
+- **Most recently completed phase/task**: Planning update only for the new project.
+- **Known partial work**: Current implementation still has boring/static stores, generic shoppers/staff, abstract incidents, and limited store customization. These are now first-class problems in the active plan.
+- **Recommended next task**: Start Phase A: Character Visual Upgrade & Animation Foundation. Build reusable character rigs/components before adding chases or store service actors.
 - **Verification command to run next**:
   ```bash
   /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --editor --quit

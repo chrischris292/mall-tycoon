@@ -3,6 +3,7 @@ extends Node3D
 
 signal finished_visit(entry_id: String, exit_id: String, store_index: int, purchased: bool, amount: int, rating_delta: int)
 signal coin_tossed_in_fountain(world_pos: Vector3)
+signal shopper_thought(world_pos: Vector3, text: String, severity: String, store_index: int)
 
 enum Personality {
 	LUXURY_VIP,
@@ -33,6 +34,16 @@ var budget := 150
 var satisfaction := 95
 var will_purchase := false
 var sale_amount := 0
+var needs := {
+	"hunger": 30,
+	"comfort": 40,
+	"restroom": 25,
+	"entertainment": 25,
+	"patience": 75
+}
+var destination_category := "Fashion"
+var mall_context: Dictionary = {}
+var thought_cooldown := 0.0
 
 var route: Array[Vector3] = []
 var route_index := 0
@@ -68,15 +79,18 @@ func configure(
 	visited_store_idx: int,
 	store_data: Dictionary,
 	mall_cleanliness: int,
-	mall_security: int
+	mall_security: int,
+	p_mall_context: Dictionary = {}
 ) -> void:
 	route = p_route
 	entry_id = from_entry
 	exit_id = to_exit
 	store_index = visited_store_idx
 	store_ref = store_data
+	mall_context = p_mall_context
 
 	_assign_random_personality()
+	_assign_shopper_needs()
 	_evaluate_mall_first_impression(mall_cleanliness, mall_security)
 
 	position = route[0] if route.size() > 0 else Vector3.ZERO
@@ -104,21 +118,61 @@ func _assign_random_personality() -> void:
 		personality = Personality.CASUAL_STROLLER
 		budget = randi_range(25, 75)
 
+func _assign_shopper_needs() -> void:
+	match personality:
+		Personality.LUXURY_VIP:
+			needs = {"hunger": randi_range(15, 45), "comfort": randi_range(70, 95), "restroom": randi_range(15, 40), "entertainment": randi_range(20, 55), "patience": randi_range(55, 80)}
+			destination_category = "Luxury"
+		Personality.BARGAIN_HUNTER:
+			needs = {"hunger": randi_range(20, 60), "comfort": randi_range(25, 55), "restroom": randi_range(20, 45), "entertainment": randi_range(10, 40), "patience": randi_range(70, 95)}
+			destination_category = "Fashion"
+		Personality.TRENDSETTER:
+			needs = {"hunger": randi_range(20, 55), "comfort": randi_range(35, 65), "restroom": randi_range(20, 45), "entertainment": randi_range(60, 95), "patience": randi_range(45, 75)}
+			destination_category = "Specialty" if randf() > 0.35 else "Entertainment"
+		Personality.FOODIE_FAMILY:
+			needs = {"hunger": randi_range(70, 100), "comfort": randi_range(55, 85), "restroom": randi_range(55, 90), "entertainment": randi_range(30, 70), "patience": randi_range(45, 75)}
+			destination_category = "Food"
+		Personality.CASUAL_STROLLER:
+			needs = {"hunger": randi_range(25, 65), "comfort": randi_range(45, 75), "restroom": randi_range(20, 55), "entertainment": randi_range(25, 70), "patience": randi_range(55, 85)}
+			destination_category = ["Fashion", "Food", "Entertainment"][randi() % 3]
+
 func _evaluate_mall_first_impression(clean: int, sec: int) -> void:
 	match personality:
 		Personality.LUXURY_VIP:
 			if clean < 75:
 				satisfaction -= 30
+				_record_thought("This mall needs to feel spotless for luxury shopping.", "warning", "🧼")
 			if sec < 70:
 				satisfaction -= 20
+				_record_thought("Security feels too light for a premium visit.", "warning", "🛡️")
 		Personality.BARGAIN_HUNTER:
 			if clean < 40:
 				satisfaction -= 15
+				_record_thought("Good deals are nice, but this place feels rough.", "warning", "🧹")
 		Personality.FOODIE_FAMILY:
 			if clean < 60:
 				satisfaction -= 25
+				_record_thought("I need this place cleaner if we are eating here.", "warning", "🍽️")
+
+	var restrooms := int(mall_context.get("restrooms", 0))
+	var seating := int(mall_context.get("seating", 0))
+	var food_count := int(mall_context.get("food_count", 0))
+	var entertainment_count := int(mall_context.get("entertainment_count", 0))
+	if int(needs.get("restroom", 0)) > 65 and restrooms <= 0:
+		satisfaction -= 18
+		_record_thought("I cannot find a restroom near this trip.", "warning", "🚻")
+	if int(needs.get("comfort", 0)) > 70 and seating < 2:
+		satisfaction -= 12
+		_record_thought("There are not enough places to sit.", "info", "🪑")
+	if int(needs.get("hunger", 0)) > 70 and food_count <= 0:
+		satisfaction -= 22
+		_record_thought("I came hungry and cannot find food.", "warning", "🍜")
+	if int(needs.get("entertainment", 0)) > 70 and entertainment_count <= 0:
+		satisfaction -= 12
+		_record_thought("I wish this mall had more fun stuff to do.", "info", "🎬")
 
 func _process(delta: float) -> void:
+	thought_cooldown = maxf(0.0, thought_cooldown - delta)
 	# Thought bubble billboard update
 	if bubble_timer > 0.0:
 		bubble_timer -= delta
@@ -192,7 +246,12 @@ func _process(delta: float) -> void:
 
 func _process_concourse_navigation(delta: float) -> void:
 	if route_index >= route.size():
-		finished_visit.emit(entry_id, exit_id, store_index, will_purchase, sale_amount, 1 if will_purchase else -1)
+		var rating := 2 if satisfaction >= 85 and will_purchase else 1 if satisfaction >= 65 else -2 if satisfaction < 40 else -1
+		if satisfaction < 45:
+			_record_thought("Leaving unhappy. The mall did not match this trip.", "warning", "😤")
+		elif will_purchase:
+			_record_thought("Good visit. I found what I wanted.", "success", "❤️")
+		finished_visit.emit(entry_id, exit_id, store_index, will_purchase, sale_amount, rating)
 		queue_free()
 		return
 
@@ -263,11 +322,13 @@ func _resolve_purchase_decision() -> void:
 	var stock_level: float = float(store_ref.get("stock", 100.0))
 	var cat: String = str(store_ref.get("category", "Fashion"))
 	var level: int = int(store_ref.get("level", 1))
+	var patience := int(needs.get("patience", 75))
 
 	# 1. Out of stock check
 	if stock_level < 8.0:
 		will_purchase = false
 		satisfaction -= 20
+		_record_thought("They were out of what I wanted.", "warning", "📦")
 		_show_bubble("📦❌", 2.5)
 		current_state = State.LEAVING_STORE
 		target_position = route[5] if route.size() > 5 else position
@@ -275,6 +336,15 @@ func _resolve_purchase_decision() -> void:
 
 	# 2. Personality-driven price elasticity & decision matrix
 	var purchase_score := 50.0
+	if cat == destination_category:
+		purchase_score += 22.0
+	elif destination_category == "Food" and cat != "Food" and int(needs.get("hunger", 0)) > 75:
+		purchase_score -= 20.0
+	if satisfaction < 55:
+		purchase_score -= 18.0
+	if patience < 55 and int(store_ref.get("staff", 2)) < 2:
+		purchase_score -= 15.0
+		_record_thought("The service line feels too slow.", "warning", "⏱️")
 
 	match personality:
 		Personality.LUXURY_VIP:
@@ -288,6 +358,7 @@ func _resolve_purchase_decision() -> void:
 			if price_strat == "Value": purchase_score += 40.0
 			elif price_strat == "Premium":
 				purchase_score -= 55.0 # Bargain hunters hate premium prices!
+				_record_thought("That price is too high for me.", "warning", "💸")
 				_show_bubble("💸❌", 2.5)
 			else: purchase_score += 5.0
 		Personality.TRENDSETTER:
@@ -303,12 +374,19 @@ func _resolve_purchase_decision() -> void:
 
 	if purchase_score >= 45.0 and budget >= int(store_ref.get("base_income", 80)):
 		will_purchase = true
+		satisfaction = mini(100, satisfaction + 8)
+		_record_thought("This store fits my trip.", "success", "😍")
 		_show_bubble("😍" if personality == Personality.LUXURY_VIP else "💡", 2.0)
 		current_state = State.IN_QUEUE
 		target_position = register_pos if register_pos != Vector3.ZERO else route[4]
 		state_timer = service_time * randf_range(0.6, 1.1)
 	else:
 		will_purchase = false
+		satisfaction -= 10
+		if budget < int(store_ref.get("base_income", 80)):
+			_record_thought("I do not have the budget for this store.", "warning", "💸")
+		else:
+			_record_thought("This was not what I came here for.", "info", "🤔")
 		_show_bubble("😒" if randf() > 0.5 else "💸❓", 2.0)
 		current_state = State.LEAVING_STORE
 		target_position = route[5] if route.size() > 5 else position
@@ -322,6 +400,10 @@ func _complete_transaction() -> void:
 
 	sale_amount = roundi((float(store_ref.get("base_income", 90)) * tier_mult + randf_range(15.0, 40.0)) * price_mult * vip_bonus)
 	budget = maxi(0, budget - sale_amount)
+	if store_ref.get("category", "") == "Food":
+		needs["hunger"] = maxi(0, int(needs.get("hunger", 0)) - 55)
+	if store_ref.get("category", "") == "Entertainment":
+		needs["entertainment"] = maxi(0, int(needs.get("entertainment", 0)) - 45)
 
 	_show_bubble("❤️" if personality == Personality.LUXURY_VIP else "✨", 2.5)
 
@@ -344,6 +426,13 @@ func _show_bubble(icon_text: String, duration := 2.5) -> void:
 	if bubble_label != null:
 		bubble_label.text = icon_text
 		bubble_timer = duration
+
+func _record_thought(text: String, severity: String, icon_text := "💭") -> void:
+	if thought_cooldown > 0.0:
+		return
+	thought_cooldown = 1.2
+	_show_bubble(icon_text, 2.3)
+	shopper_thought.emit(position, text, severity, store_index)
 
 func _build_avatar() -> void:
 	var avatar := Node3D.new()

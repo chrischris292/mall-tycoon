@@ -1,5 +1,108 @@
 {
   "version": 1,
+  "scenarios": [
+    {
+      "id": "neighborhood_launch",
+      "name": "Neighborhood Launch",
+      "mode": "career",
+      "description": "Turn Aurora Grand into a reliable regional mall.",
+      "goals": [
+        {"id": "cash_reserve", "label": "Build $32,000 cash reserve", "metric": "cash", "target": 32000},
+        {"id": "reputation", "label": "Reach 82% reputation", "metric": "reputation", "target": 82},
+        {"id": "tenant_mood", "label": "Average tenant mood 72%", "metric": "tenant_satisfaction", "target": 72}
+      ],
+      "reward_cash": 3500,
+      "prestige_reward": 1
+    },
+    {
+      "id": "mall_rescue",
+      "name": "Mall Rescue",
+      "mode": "challenge",
+      "description": "Stabilize operations before tenants walk.",
+      "goals": [
+        {"id": "security", "label": "Reach 80% security", "metric": "security", "target": 80},
+        {"id": "cleanliness", "label": "Reach 82% cleanliness", "metric": "cleanliness", "target": 82},
+        {"id": "at_risk", "label": "Keep at-risk tenants at 0", "metric": "at_risk_inverse", "target": 0}
+      ],
+      "reward_cash": 2500,
+      "prestige_reward": 1
+    },
+    {
+      "id": "holiday_rush",
+      "name": "Holiday Rush",
+      "mode": "challenge",
+      "description": "Handle heavy crowds and convert them into sales.",
+      "goals": [
+        {"id": "weekly_sales", "label": "Generate $8,000 weekly sales", "metric": "weekly_sales", "target": 8000},
+        {"id": "active_shoppers", "label": "Serve 30 active shoppers", "metric": "active_shoppers", "target": 30},
+        {"id": "reputation", "label": "Keep reputation at 78%", "metric": "reputation", "target": 78}
+      ],
+      "reward_cash": 5000,
+      "prestige_reward": 2
+    }
+  ],
+  "economy_profiles": {
+    "default": {
+      "base_rent": 360,
+      "revenue_share": 0.08,
+      "term_weeks": 8,
+      "rent_tolerance": 0.38,
+      "prestige_tier": 1,
+      "preferred_adjacencies": ["Food", "Fashion"],
+      "disliked_adjacencies": [],
+      "target_personalities": ["Casual Stroller", "Bargain Hunter"]
+    },
+    "Luxury": {
+      "base_rent": 720,
+      "revenue_share": 0.11,
+      "term_weeks": 10,
+      "rent_tolerance": 0.32,
+      "prestige_tier": 3,
+      "preferred_adjacencies": ["Luxury", "Fashion", "Specialty"],
+      "disliked_adjacencies": ["Food"],
+      "target_personalities": ["Luxury VIP", "Trendsetter"]
+    },
+    "Food": {
+      "base_rent": 430,
+      "revenue_share": 0.09,
+      "term_weeks": 7,
+      "rent_tolerance": 0.44,
+      "prestige_tier": 1,
+      "preferred_adjacencies": ["Food", "Entertainment"],
+      "disliked_adjacencies": [],
+      "target_personalities": ["Foodie Family", "Casual Stroller", "Bargain Hunter"]
+    },
+    "Fashion": {
+      "base_rent": 390,
+      "revenue_share": 0.08,
+      "term_weeks": 8,
+      "rent_tolerance": 0.38,
+      "prestige_tier": 2,
+      "preferred_adjacencies": ["Fashion", "Luxury", "Specialty"],
+      "disliked_adjacencies": [],
+      "target_personalities": ["Trendsetter", "Luxury VIP", "Bargain Hunter"]
+    },
+    "Entertainment": {
+      "base_rent": 680,
+      "revenue_share": 0.1,
+      "term_weeks": 9,
+      "rent_tolerance": 0.48,
+      "prestige_tier": 2,
+      "preferred_adjacencies": ["Food", "Entertainment", "Specialty"],
+      "disliked_adjacencies": ["Luxury"],
+      "target_personalities": ["Foodie Family", "Trendsetter", "Casual Stroller"]
+    },
+    "Specialty": {
+      "base_rent": 540,
+      "revenue_share": 0.1,
+      "term_weeks": 8,
+      "rent_tolerance": 0.36,
+      "prestige_tier": 2,
+      "preferred_adjacencies": ["Specialty", "Fashion", "Entertainment"],
+      "disliked_adjacencies": [],
+      "target_personalities": ["Trendsetter", "Luxury VIP", "Casual Stroller"]
+    }
+  },
   "tenants": [
     {
       "id": "luxury_maison",
