@@ -25,13 +25,16 @@ var stock_bar: ProgressBar
 var campaign_button: Button
 var store_buttons: HBoxContainer
 var flow_label: Label
+var speed_label: Label
 
 func _ready() -> void:
+	Engine.time_scale = 1.0
 	blueprint = _load_blueprint("res://data/aurora_grand.json")
 	cash = int(blueprint.get("starting_cash", 28000))
 	_build_architecture()
 	_build_stores()
 	_build_entrances()
+	_load_game()
 	_update_store_selection_visuals()
 	_build_ui()
 	for index in 10:
@@ -251,6 +254,21 @@ func _build_ui() -> void:
 	var mode := _label("NATIVE 3D · OPERATING VIEW", 11, Color("#67e8f9"))
 	mode.position = Vector2(330, 24)
 	top.add_child(mode)
+	speed_label = _label("1×", 12, Color("#cbd5e1"))
+	speed_label.position = Vector2(568, 24)
+	top.add_child(speed_label)
+	var pause_button := _button("Ⅱ", Vector2(610, 13), Vector2(42, 40))
+	pause_button.pressed.connect(_set_simulation_speed.bind(0.0))
+	top.add_child(pause_button)
+	var normal_button := _button("1×", Vector2(658, 13), Vector2(48, 40))
+	normal_button.pressed.connect(_set_simulation_speed.bind(1.0))
+	top.add_child(normal_button)
+	var fast_button := _button("2×", Vector2(712, 13), Vector2(48, 40))
+	fast_button.pressed.connect(_set_simulation_speed.bind(2.0))
+	top.add_child(fast_button)
+	var save_button := _button("SAVE", Vector2(772, 13), Vector2(72, 40))
+	save_button.pressed.connect(_save_game)
+	top.add_child(save_button)
 	cash_label = _label("", 17, Color("#fbbf24"))
 	cash_label.position = Vector2(870, 19)
 	top.add_child(cash_label)
@@ -352,6 +370,7 @@ func _update_store_selection_visuals() -> void:
 
 func _set_price(strategy: String) -> void:
 	stores[selected_store].price = strategy
+	_save_game()
 	_refresh_ui()
 
 func _change_staff(delta: int) -> void:
@@ -362,12 +381,14 @@ func _change_staff(delta: int) -> void:
 	elif delta < 0 and store.staff > 1:
 		store.staff -= 1
 		cash += 100
+	_save_game()
 	_refresh_ui()
 
 func _restock() -> void:
 	if cash < 240: return
 	cash -= 240
 	stores[selected_store].stock = 100.0
+	_save_game()
 	_refresh_ui()
 
 func _campaign() -> void:
@@ -375,6 +396,7 @@ func _campaign() -> void:
 	cash -= 450
 	stores[selected_store].promotion = 25.0
 	for index in 6: _spawn_shopper(index % 2 == 0)
+	_save_game()
 	_refresh_ui()
 
 func _set_facade(style: String) -> void:
@@ -388,6 +410,7 @@ func _set_facade(style: String) -> void:
 	material.emission_enabled = style == "Neon"
 	material.emission = stores[selected_store].color
 	material.emission_energy_multiplier = 2.3 if style == "Neon" else 0.0
+	_save_game()
 	_refresh_ui()
 
 func _refresh_ui() -> void:
@@ -403,6 +426,41 @@ func _refresh_ui() -> void:
 	for index in store_buttons.get_child_count():
 		var button := store_buttons.get_child(index) as Button
 		button.modulate = Color.WHITE if index == selected_store else Color(0.68, 0.72, 0.8)
+
+func _set_simulation_speed(speed: float) -> void:
+	Engine.time_scale = speed
+	speed_label.text = "PAUSED" if speed == 0.0 else "%d×" % roundi(speed)
+	speed_label.modulate = Color("#fbbf24") if speed == 0.0 else Color("#cbd5e1")
+
+func _save_game() -> void:
+	var store_state: Array[Dictionary] = []
+	for store in stores:
+		store_state.append({
+			"price": store.price, "staff": store.staff, "stock": store.stock,
+			"satisfaction": store.satisfaction, "promotion": store.promotion, "facade": store.facade
+		})
+	var payload := {"version": 1, "cash": cash, "selected_store": selected_store, "stores": store_state}
+	var file := FileAccess.open("user://aurora_save.json", FileAccess.WRITE)
+	if file != null:
+		file.store_string(JSON.stringify(payload))
+
+func _load_game() -> void:
+	if not FileAccess.file_exists("user://aurora_save.json"): return
+	var file := FileAccess.open("user://aurora_save.json", FileAccess.READ)
+	if file == null: return
+	var payload = JSON.parse_string(file.get_as_text())
+	if not payload is Dictionary or int(payload.get("version", 0)) != 1: return
+	cash = int(payload.get("cash", cash))
+	selected_store = clampi(int(payload.get("selected_store", 0)), 0, stores.size() - 1)
+	var saved_stores: Array = payload.get("stores", [])
+	for index in mini(stores.size(), saved_stores.size()):
+		var saved: Dictionary = saved_stores[index]
+		stores[index].price = str(saved.get("price", "Market"))
+		stores[index].staff = int(saved.get("staff", 3))
+		stores[index].stock = float(saved.get("stock", 100.0))
+		stores[index].satisfaction = int(saved.get("satisfaction", 92))
+		stores[index].promotion = float(saved.get("promotion", 0.0))
+		stores[index].facade = str(saved.get("facade", "Gallery"))
 
 func _panel(at: Vector2, panel_size: Vector2, color: Color) -> Panel:
 	var panel := Panel.new()
