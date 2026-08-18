@@ -1,72 +1,189 @@
 extends Node3D
 
-const Shopper = preload("res://scripts/shopper.gd")
-const STORE_COLORS := [Color("#38bdf8"), Color("#f97316"), Color("#d8b4fe"), Color("#34d399"), Color("#fb7185"), Color("#facc15")]
-const SHOPPER_COLORS := [Color("#38bdf8"), Color("#fb7185"), Color("#34d399"), Color("#fbbf24"), Color("#a78bfa")]
+const SoundMgr = preload("res://scripts/sound_manager.gd")
 
-var stores: Array[Dictionary] = []
-var entrances := {}
-var blueprint: Dictionary = {}
-var selected_store := 0
+func _spawn_shopper_node() -> Node3D:
+	var node := Node3D.new()
+	node.set_script(load("res://scripts/shopper.gd"))
+	return node
+
+
+
+const STORE_COLORS := [
+	Color("#38bdf8"), Color("#f97316"), Color("#d8b4fe"), Color("#34d399"),
+	Color("#fb7185"), Color("#facc15"), Color("#a78bfa"), Color("#4ade80")
+]
+
+# Mall State Variables
 var cash := 28000
+var week := 1
+var day := 1
+var day_progress := 0.0
 var reputation := 76
+var cleanliness := 95
+var security := 90
+var total_sales := 0
 var active_shoppers := 0
 var spawn_cooldown := 0.0
+
+var selected_store_idx := 0
+var current_drawer := "inspector" # "inspector", "directory", "architect", "ops", "feed"
+var selected_directory_cat := "All"
+var selected_place_amenity := ""
+
+# Data Catalogs & Blueprint
+var catalog_data: Dictionary = {}
+var tenants_catalog: Array = []
+var amenities_catalog: Array = []
+var blueprint: Dictionary = {}
+
+var stores: Array[Dictionary] = []
+var placed_amenities: Array[Dictionary] = []
+var entrances := {}
+var event_feed: Array[Dictionary] = []
+
+# Camera & Input state
 var camera_yaw := -18.0
-var camera_distance := 31.0
+var camera_pitch := -48.0
+var camera_distance := 58.0
+var camera_target_pos := Vector3.ZERO
 var dragging := false
 var last_pointer := Vector2.ZERO
 var active_touches: Dictionary = {}
+
+
+# Node References
+var sound_mgr: SoundMgr
+var ui_root: CanvasLayer
 var cash_label: Label
-var visitor_label: Label
-var store_title: Label
-var store_detail: Label
-var stock_bar: ProgressBar
-var campaign_button: Button
-var store_buttons: HBoxContainer
-var flow_label: Label
+var date_label: Label
+var guests_label: Label
+var rep_label: Label
+var clean_label: Label
+var sec_label: Label
 var speed_label: Label
+var sound_btn: Button
+
+# UI Drawer Containers
+var drawer_panel: Panel
+var drawer_title: Label
+var drawer_content: Control
+var toast_container: VBoxContainer
 
 func _ready() -> void:
 	Engine.time_scale = 1.0
-	blueprint = _load_blueprint("res://data/aurora_grand.json")
+	sound_mgr = SoundMgr.new()
+	sound_mgr.name = "SoundManager"
+	add_child(sound_mgr)
+
+	_load_catalogs()
+	blueprint = _load_json("res://data/aurora_grand.json")
 	cash = int(blueprint.get("starting_cash", 28000))
+
 	_build_architecture()
-	_build_stores()
+	_build_stores_from_blueprint()
 	_build_entrances()
 	_load_game()
-	_update_store_selection_visuals()
+
 	_build_ui()
-	for index in 10:
+	_update_store_selection_visuals()
+
+	# Spawn opening crowd
+	for index in 12:
 		_spawn_shopper(index % 2 == 0)
+
+	_add_event("Welcome to Aurora Grand", "Operating 3D flagship mall. Manage stores, zone lots, and expand!", "info")
 	_refresh_ui()
 
 func _process(delta: float) -> void:
+	# 1. Day / Time Progression
+	day_progress += delta
+	if day_progress >= 26.0:
+		day_progress -= 26.0
+		day += 1
+		# Cleanliness and security decay with crowd size
+		cleanliness = maxi(10, cleanliness - (3 if active_shoppers > 20 else 2))
+		security = maxi(10, security - (3 if active_shoppers > 25 else 1))
+
+		if cleanliness < 50 and randf() < 0.35:
+			_trigger_health_inspection_penalty()
+		if security < 45 and randf() < 0.30:
+			_trigger_shoplifting_incident()
+
+		if day > 7:
+			day = 1
+			week += 1
+			_process_weekly_accounting()
+		elif randf() < 0.35:
+			_trigger_daily_event()
+
+	# 2. Shopper Crowd Spawning (Adjusted for mall draw, synergy, & reputation)
 	spawn_cooldown -= delta
-	if spawn_cooldown <= 0.0 and active_shoppers < 34:
+	var tenant_draw_sum := _calculate_total_mall_draw()
+	var shopper_cap := clampi(16 + int(tenant_draw_sum * 0.12) + placed_amenities.size() * 3 + int(reputation * 0.25), 14, 58)
+
+	if spawn_cooldown <= 0.0 and active_shoppers < shopper_cap:
 		_spawn_shopper(randf() > 0.5)
-		spawn_cooldown = randf_range(0.55, 1.15)
-	for store in stores:
-		store.promotion = maxf(0.0, store.promotion - delta)
+		spawn_cooldown = randf_range(0.5, 1.1) * (1.15 - reputation / 220.0)
+
+	# 3. Store Deep Simulation (Promotion timers, Cinema showtimes)
+	for s in stores:
+		if float(s.get("promotion", 0.0)) > 0.0:
+			s.promotion = maxf(0.0, float(s.promotion) - delta)
+
+		# Cinema Showtime Simulation
+		if str(s.get("category", "")) == "Entertainment" and s.has("cinema_state"):
+			var cs: Dictionary = s.cinema_state
+			cs.timer = float(cs.timer) - delta
+			if cs.timer <= 0.0:
+				match str(cs.phase):
+					"box_office":
+						cs.phase = "doors_open"
+						cs.timer = 12.0
+						_add_event("Cinema Doors Opening", "Auditorium doors open for '%s'!" % cs.movie, "info")
+					"doors_open":
+						cs.phase = "screening"
+						cs.timer = 32.0
+						_add_event("Feature Film Rolling", "IMAX 4K Laser Projector active: '%s'." % cs.movie, "info")
+						_update_cinema_glow(s, true)
+					"screening":
+						cs.phase = "credits"
+						cs.timer = 8.0
+						_update_cinema_glow(s, false)
+					"credits":
+						cs.phase = "box_office"
+						cs.timer = 24.0
+						var movies: Array = ["Interstellar Echoes 4DX", "Neon Samurai 2099", "Starlight Symphony", "Quantum Horizon"]
+						cs.movie = movies[(movies.find(cs.movie) + 1) % movies.size()]
+						_add_event("Now Showing at Cinema", "Box office open for next feature: '%s'." % cs.movie, "info")
+
 	_update_camera(delta)
 
+# ==============================================================================
+# INPUT & TOUCH HANDLING (Desktop + Mobile Gestures)
+# ==============================================================================
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			_select_store_at_screen(event.position)
-		if event.button_index == MOUSE_BUTTON_RIGHT or event.button_index == MOUSE_BUTTON_MIDDLE:
+			if selected_place_amenity != "":
+				_place_amenity_at_screen(event.position)
+			else:
+				_select_store_at_screen(event.position)
+		elif event.button_index == MOUSE_BUTTON_RIGHT or event.button_index == MOUSE_BUTTON_MIDDLE:
 			dragging = event.pressed
 			last_pointer = event.position
-		if event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			camera_distance = maxf(18.0, camera_distance - 2.0)
-		if event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			camera_distance = minf(42.0, camera_distance + 2.0)
+		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			camera_distance = maxf(22.0, camera_distance - 2.5)
+		elif event.pressed and event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			camera_distance = minf(82.0, camera_distance + 2.5)
 	elif event is InputEventMouseMotion and dragging:
 		camera_yaw -= event.relative.x * 0.18
+		camera_pitch = clampf(camera_pitch - event.relative.y * 0.12, -75.0, -20.0)
 	elif event is InputEventMagnifyGesture:
-		camera_distance = clampf(camera_distance / event.factor, 18.0, 42.0)
+		camera_distance = clampf(camera_distance / event.factor, 22.0, 82.0)
+
 	elif event is InputEventPanGesture:
-		camera_yaw -= event.delta.x * 0.55
+		camera_yaw -= event.delta.x * 0.6
 	elif event is InputEventScreenTouch:
 		if event.pressed:
 			active_touches[event.index] = event.position
@@ -76,373 +193,1331 @@ func _unhandled_input(event: InputEvent) -> void:
 		active_touches[event.index] = event.position
 		if active_touches.size() == 1:
 			camera_yaw -= event.relative.x * 0.16
+			camera_pitch = clampf(camera_pitch - event.relative.y * 0.10, -75.0, -20.0)
 		elif active_touches.size() == 2:
-			var touch_positions := active_touches.values()
-			var current_distance: float = touch_positions[0].distance_to(touch_positions[1])
-			var previous_moved: Vector2 = event.position - event.relative
-			var other_position: Vector2 = touch_positions[0] if touch_positions[1] == event.position else touch_positions[1]
-			var previous_distance: float = previous_moved.distance_to(other_position)
-			camera_distance = clampf(camera_distance - (current_distance - previous_distance) * 0.035, 18.0, 42.0)
+			var touches := active_touches.values()
+			var cur_dist: float = touches[0].distance_to(touches[1])
+			var prev_pos: Vector2 = event.position - event.relative
+			var other_pos: Vector2 = touches[0] if touches[1] == event.position else touches[1]
+			var prev_dist: float = prev_pos.distance_to(other_pos)
+			camera_distance = clampf(camera_distance - (cur_dist - prev_dist) * 0.04, 16.0, 46.0)
 
 func _update_camera(delta: float) -> void:
 	var input_axis := Input.get_axis("camera_left", "camera_right")
 	var zoom_axis := Input.get_axis("camera_up", "camera_down")
-	camera_yaw += input_axis * delta * 42.0
-	camera_distance = clampf(camera_distance + zoom_axis * delta * 15.0, 18.0, 42.0)
+	camera_yaw += input_axis * delta * 45.0
+	camera_distance = clampf(camera_distance + zoom_axis * delta * 20.0, 22.0, 82.0)
+
+
 	$CameraRig.rotation_degrees.y = lerpf($CameraRig.rotation_degrees.y, camera_yaw, delta * 8.0)
+	$CameraRig/Camera3D.rotation_degrees.x = lerpf($CameraRig/Camera3D.rotation_degrees.x, camera_pitch, delta * 8.0)
 	$CameraRig/Camera3D.position.z = lerpf($CameraRig/Camera3D.position.z, camera_distance, delta * 8.0)
+	$CameraRig.position = $CameraRig.position.lerp(camera_target_pos, delta * 6.0)
 
+# ==============================================================================
+# 3D WORLD ARCHITECTURE & DYNAMIC MULTI-SIZE STORES
+# ==============================================================================
 func _build_architecture() -> void:
-	# Landscape podium and a polished, strictly walkable central concourse.
-	_box("Site", Vector3(0, -0.45, 0), Vector3(60, 0.7, 32), Color("#172033"), 0.12, 0.9)
-	for corridor_data in blueprint.get("corridors", []):
-		var center: Array = corridor_data.center
-		var corridor_size: Array = corridor_data.size
-		var is_atrium: bool = corridor_data.material == "atrium"
-		_box(str(corridor_data.id), Vector3(float(center[0]), 0.02 if is_atrium else 0.0, float(center[1])), Vector3(float(corridor_size[0]), 0.21 if is_atrium else 0.18, float(corridor_size[1])), Color("#e8edf0") if is_atrium else Color("#dfe7e9"), 0.2 if is_atrium else 0.18, 0.18 if is_atrium else 0.22)
-	# Brass circulation inlay gives the corridor a readable premium spine.
-	_box("BrassInlay", Vector3(0, 0.12, 0), Vector3(47.5, 0.025, 0.11), Color("#caa85e"), 0.8, 0.24)
-	for x in [-18.0, -9.0, 9.0, 18.0]:
-		_box("SkylightBeam", Vector3(x, 3.8, 0), Vector3(0.16, 0.18, 7.4), Color("#67e8f9"), 0.62, 0.12)
-	# Center court planter and sculptural light.
-	_cylinder("Planter", Vector3(0, 0.42, 0), 1.35, 0.7, Color("#0f766e"), 0.14, 0.48)
-	_cylinder("Tree", Vector3(0, 2.2, 0), 0.22, 3.5, Color("#6b4f38"), 0.0, 0.8)
-	_sphere("Canopy", Vector3(0, 4.15, 0), 1.65, Color("#34d399"), 0.0, 0.74)
+	# Main Site Podium — large enough to cover 4 wings + corners
+	_box("Site", Vector3(0, -0.45, 0), Vector3(100, 0.7, 100), Color("#0b1220"), 0.12, 0.9)
 
-func _build_stores() -> void:
-	var definitions: Array = blueprint.get("stores", [])
-	for index in definitions.size():
-		var definition: Dictionary = definitions[index]
-		var store_position: Array = definition.position
-		var north := float(store_position[1]) < 0.0
+	# Corner fill slabs between wings (to avoid void gaps at intersections)
+	for cx in [-16.0, 16.0]:
+		for cz in [-16.0, 16.0]:
+			_box("CornerSlab_%d_%d" % [int(cx), int(cz)], Vector3(cx, 0.0, cz),
+				Vector3(16.0, 0.18, 16.0), Color("#1e293b"), 0.1, 0.8)
+
+	# Walkable Concourse Galleries from blueprint
+	for corridor in blueprint.get("corridors", []):
+		var center: Array = corridor.center
+		var size_data: Array = corridor.size
+		var is_atrium: bool = corridor.get("material", "") == "atrium"
+		_box(
+			str(corridor.id),
+			Vector3(float(center[0]), 0.02 if is_atrium else 0.0, float(center[1])),
+			Vector3(float(size_data[0]), 0.22 if is_atrium else 0.18, float(size_data[1])),
+			Color("#f8fafc") if is_atrium else Color("#e2e8f0"),
+			0.22 if is_atrium else 0.15,
+			0.15 if is_atrium else 0.25
+		)
+
+	# Brass Circulation Inlays — dual-lane along each wing axis
+	# East/West wing (X axis): two lanes at z = ±2.8
+	_box("BrassInlayEW_N", Vector3(0, 0.12, -2.8), Vector3(80.0, 0.025, 0.14), Color("#caa85e"), 0.85, 0.2)
+	_box("BrassInlayEW_S", Vector3(0, 0.12,  2.8), Vector3(80.0, 0.025, 0.14), Color("#caa85e"), 0.85, 0.2)
+	# North/South wing (Z axis): two lanes at x = ±2.8
+	_box("BrassInlayNS_W", Vector3(-2.8, 0.12, 0), Vector3(0.14, 0.025, 80.0), Color("#caa85e"), 0.85, 0.2)
+	_box("BrassInlayNS_E", Vector3( 2.8, 0.12, 0), Vector3(0.14, 0.025, 80.0), Color("#caa85e"), 0.85, 0.2)
+
+	# Skylight Beams — along East/West wing
+	for x in [-30.0, -20.0, -10.0, 10.0, 20.0, 30.0]:
+		_box("SkylightBeam_EW_%d" % int(x), Vector3(x, 4.4, 0), Vector3(0.18, 0.2, 9.0), Color("#38bdf8"), 0.7, 0.1)
+	# Skylight Beams — along North/South wing
+	for z in [-30.0, -20.0, -10.0, 10.0, 20.0, 30.0]:
+		_box("SkylightBeam_NS_%d" % int(z), Vector3(0, 4.4, z), Vector3(9.0, 0.2, 0.18), Color("#38bdf8"), 0.7, 0.1)
+
+	# Wing intersection corner benches (4 corners)
+	var corner_positions := [Vector3(12, 0, -12), Vector3(-12, 0, -12), Vector3(12, 0, 12), Vector3(-12, 0, 12)]
+	for i in corner_positions.size():
+		var cp: Vector3 = corner_positions[i]
+		_box("CornerBench_%d" % i, cp, Vector3(2.2, 0.48, 0.7), Color("#334155"), 0.3, 0.5)
+		_box("CornerBenchBack_%d" % i, cp + Vector3(0, 0.42, 0), Vector3(2.2, 0.35, 0.2), Color("#1e293b"), 0.2, 0.5)
+
+	# Grand Center Court Fountain (expanded)
+	_build_center_court_fountain()
+
+func _build_center_court_fountain() -> void:
+	var root := Node3D.new()
+	root.name = "CenterCourtFountain"
+	root.position = Vector3(0, 0, 0)
+	add_child(root)
+
+	# Grand outer basin — wider for the larger rotunda
+	_cylinder("FountainBasinOuter", Vector3(0, 0.25, 0), 3.4, 0.55, Color("#0f766e"), 0.3, 0.4, root)
+	# Water surface
+	_cylinder("FountainWater", Vector3(0, 0.46, 0), 3.2, 0.12, Color(0.15, 0.75, 0.92, 0.88), 0.2, 0.05, root, true)
+	# Inner basin tier
+	_cylinder("FountainBasinMid", Vector3(0, 0.82, 0), 1.9, 0.55, Color("#0d9488"), 0.35, 0.35, root)
+	_cylinder("FountainWaterMid", Vector3(0, 1.06, 0), 1.75, 0.08, Color(0.2, 0.85, 0.95, 0.8), 0.2, 0.05, root, true)
+	# Top tier basin
+	_cylinder("FountainBasinInner", Vector3(0, 1.35, 0), 1.0, 0.5, Color("#115e59"), 0.3, 0.4, root)
+	# Central spire
+	_cylinder("FountainSpire", Vector3(0, 1.95, 0), 0.28, 1.1, Color("#caa85e"), 0.8, 0.2, root)
+	_sphere("FountainSphere", Vector3(0, 2.65, 0), 0.42, Color("#67e8f9"), 0.9, 0.08, root)
+
+	# 4 cardinal benches around the fountain
+	for angle_deg in [0.0, 90.0, 180.0, 270.0]:
+		var rad := deg_to_rad(angle_deg)
+		var bx := sin(rad) * 5.0
+		var bz := cos(rad) * 5.0
+		var bench := _box("FountainBench_%d" % int(angle_deg),
+			Vector3(bx, 0.24, bz), Vector3(2.4, 0.48, 0.72), Color("#1e3a5f"), 0.3, 0.5, root)
+		if bench != null:
+			bench.rotation_degrees.y = -angle_deg
+
+
+
+func _build_stores_from_blueprint() -> void:
+	stores.clear()
+	var defs: Array = blueprint.get("stores", [])
+	for index in defs.size():
+		var def: Dictionary = defs[index]
+		var store_pos: Array = def.position
+		var size_data: Array = def.get("size", [7.5, 6.0])
+		var width: float = float(size_data[0])
+		var depth: float = float(size_data[1])
+		var north: bool = float(store_pos[1]) < 0.0
+		var cat: String = str(def.get("category", "Fashion"))
+		var lot_type: String = str(def.get("lot_type", "standard"))
+
+		var tenant_match := _find_tenant_by_category(cat)
+		var s_name := str(def.get("name", tenant_match.get("name", "Store")))
+		var s_income := int(tenant_match.get("base_income", 100))
+		var s_draw := int(tenant_match.get("draw", 35))
+
+		# Scale stats for mega anchors vs kiosks
+		if lot_type == "mega_anchor":
+			s_income = roundi(s_income * 1.6)
+			s_draw = roundi(s_draw * 1.5)
+		elif lot_type == "kiosk":
+			s_income = roundi(s_income * 0.75)
+			s_draw = roundi(s_draw * 0.8)
+
+		var door_z: float = -3.8 if north else 3.8
 		var store := {
-			"name": definition.name, "category": definition.category, "position": Vector3(float(store_position[0]), 0, float(store_position[1])),
-			"door": Vector3(float(store_position[0]), 0.15, -3.65 if north else 3.65), "price": "Market", "staff": 3,
-			"stock": 100.0, "satisfaction": 92, "promotion": 0.0, "facade": "Gallery", "color": STORE_COLORS[index]
+			"name": s_name,
+			"category": cat,
+			"lot_type": lot_type,
+			"width": width,
+			"depth": depth,
+			"position": Vector3(float(store_pos[0]), 0, float(store_pos[1])),
+			"door": Vector3(float(store_pos[0]), 0.15, door_z),
+			"price": "Market",
+			"staff": int(tenant_match.get("base_staff", 2)) if lot_type != "mega_anchor" else 4,
+			"stock": 100.0,
+			"satisfaction": 95,
+			"promotion": 0.0,
+			"facade": "Neon" if cat == "Entertainment" else "Warm" if cat == "Food" else "Gallery",
+			"color": STORE_COLORS[index % STORE_COLORS.size()],
+			"level": 1,
+			"revenue": 0,
+			"served": 0,
+			"base_income": s_income,
+			"draw": s_draw,
+			"tenant_id": str(tenant_match.get("id", "generic")),
+			"fixtures": [] as Array[Vector3],
+			"register_pos": Vector3.ZERO,
+			"seat_pos": Vector3.ZERO
 		}
+
+		if cat == "Entertainment":
+			store["cinema_state"] = {
+				"movie": "Interstellar Echoes 4DX",
+				"phase": "box_office",
+				"timer": 20.0
+			}
+
 		stores.append(store)
 		_build_store_model(index, store, north)
 
 func _build_store_model(index: int, store: Dictionary, north: bool) -> void:
+	var old_node := get_node_or_null("Store_%02d_%s" % [index, store.name])
+	if old_node != null:
+		old_node.queue_free()
+
 	var root := Node3D.new()
 	root.name = "Store_%02d_%s" % [index, store.name]
 	root.position = store.position
 	root.set_meta("store_index", index)
 	add_child(root)
+
 	var color: Color = store.color
-	_box("Floor", Vector3(0, 0.12, 0), Vector3(7.4, 0.2, 6.2), color.lightened(0.76), 0.08, 0.3, root)
-	var selection := _box("Selection", Vector3(0, 0.245, 0), Vector3(7.58, 0.035, 6.38), Color(0.25, 0.9, 1.0, 0.24), 0.65, 0.12, root, true)
-	selection.visible = false
-	_box("BackWall", Vector3(0, 1.75, -3.0 if north else 3.0), Vector3(7.4, 3.5, 0.22), Color("#152033"), 0.12, 0.66, root)
-	_box("LeftWall", Vector3(-3.6, 1.55, 0), Vector3(0.22, 3.1, 6.0), Color("#263247"), 0.08, 0.55, root)
-	_box("RightWall", Vector3(3.6, 1.55, 0), Vector3(0.22, 3.1, 6.0), Color("#263247"), 0.08, 0.55, root)
-	var facade_z := 3.0 if north else -3.0
-	_box("FacadeBeam", Vector3(0, 2.7, facade_z), Vector3(7.4, 0.65, 0.3), color.darkened(0.48), 0.48, 0.2, root)
-	_box("GlassLeft", Vector3(-2.45, 1.35, facade_z), Vector3(2.25, 2.1, 0.12), Color(0.42, 0.82, 0.92, 0.32), 0.25, 0.08, root, true)
-	_box("GlassRight", Vector3(2.45, 1.35, facade_z), Vector3(2.25, 2.1, 0.12), Color(0.42, 0.82, 0.92, 0.32), 0.25, 0.08, root, true)
+	var level: int = int(store.get("level", 1))
+	var cat: String = str(store.get("category", "Fashion"))
+	var width: float = float(store.get("width", 7.5))
+	var depth: float = float(store.get("depth", 6.0))
+	var wall_height: float = 3.6 if store.get("lot_type", "") == "mega_anchor" else 3.2
+
+	# Floor Slab with Category Material
+	var floor_color: Color = color.lightened(0.78)
+	if level >= 2: floor_color = floor_color.lightened(0.1)
+	_box("Floor", Vector3(0, 0.12, 0), Vector3(width, 0.2, depth), floor_color, 0.08, 0.25, root)
+
+	# Selection Ring / Highlight
+	var selection := _box("Selection", Vector3(0, 0.245, 0), Vector3(width + 0.2, 0.035, depth + 0.2), Color(0.2, 0.9, 1.0, 0.35), 0.7, 0.1, root, true)
+	selection.visible = index == selected_store_idx
+
+	# Perimeter Walls
+	var back_z: float = (-depth * 0.5) if north else (depth * 0.5)
+	var facade_z: float = (depth * 0.5) if north else (-depth * 0.5)
+	var wall_color := Color("#152033") if level < 3 else Color("#0f172a")
+
+	_box("BackWall", Vector3(0, wall_height * 0.5, back_z), Vector3(width, wall_height, 0.22), wall_color, 0.15, 0.6, root)
+	_box("LeftWall", Vector3(-width * 0.5, wall_height * 0.5, 0), Vector3(0.22, wall_height, depth), Color("#243044"), 0.1, 0.55, root)
+	_box("RightWall", Vector3(width * 0.5, wall_height * 0.5, 0), Vector3(0.22, wall_height, depth), Color("#243044"), 0.1, 0.55, root)
+
+	# Facade Beam & Glass Curtain Wall
+	_box("FacadeBeam", Vector3(0, wall_height - 0.35, facade_z), Vector3(width, 0.7, 0.32), color.darkened(0.4), 0.5, 0.2, root)
+	var glass_w: float = (width - 2.8) * 0.5
+	_box("GlassLeft", Vector3(-width * 0.5 + glass_w * 0.5, (wall_height - 0.7) * 0.5, facade_z), Vector3(glass_w, wall_height - 0.7, 0.12), Color(0.45, 0.85, 0.95, 0.3), 0.3, 0.05, root, true)
+	_box("GlassRight", Vector3(width * 0.5 - glass_w * 0.5, (wall_height - 0.7) * 0.5, facade_z), Vector3(glass_w, wall_height - 0.7, 0.12), Color(0.45, 0.85, 0.95, 0.3), 0.3, 0.05, root, true)
+
+	# 3D Illuminated Signage
 	var sign := Label3D.new()
 	sign.name = "Sign"
-	sign.text = store.name
-	sign.font_size = 34
+	sign.text = "%s %s" % [store.name, "★".repeat(level) if level > 1 else ""]
+	sign.font_size = 32 if store.get("lot_type", "") == "mega_anchor" else 26
 	sign.outline_size = 8
 	sign.billboard = BaseMaterial3D.BILLBOARD_ENABLED
-	sign.modulate = color.lightened(0.2)
-	sign.position = Vector3(0, 2.78, facade_z + (0.18 if north else -0.18))
+	sign.modulate = color.lightened(0.35)
+	sign.position = Vector3(0, wall_height - 0.3, facade_z + (0.22 if north else -0.22))
 	sign.rotation_degrees.y = 0 if north else 180
 	root.add_child(sign)
-	# Merchandising fixtures create category silhouettes instead of colored rectangles.
-	for fixture_index in 3:
-		var fx := -2.1 + fixture_index * 2.1
-		_box("Display", Vector3(fx, 0.55, 0.25), Vector3(1.35, 0.9, 1.25), color.darkened(0.18), 0.32, 0.34, root)
-		_box("DisplayLight", Vector3(fx, 1.08, 0.25), Vector3(1.1, 0.08, 1.0), color.lightened(0.35), 0.55, 0.16, root)
-	if store.category == "Cafe" or store.category == "Dining":
-		for table_x in [-1.8, 0.0, 1.8]:
-			_cylinder("Table", Vector3(table_x, 0.52, -1.25 if north else 1.25), 0.5, 0.1, Color("#9a6c45"), 0.0, 0.62, root)
-	elif store.category == "Technology" or store.category == "Entertainment":
-		for screen_x in [-2.1, 0.0, 2.1]:
-			_box("Screen", Vector3(screen_x, 1.2, -1.7 if north else 1.7), Vector3(1.25, 1.2, 0.12), color.lightened(0.25), 0.45, 0.08, root)
+
+	# Procedural Interior Fixtures & Target Calculation
+	_build_category_interior(root, store, north)
+
+	# Clickable Collision Shape
 	var body := StaticBody3D.new()
 	body.set_meta("store_index", index)
 	var collision := CollisionShape3D.new()
 	var shape := BoxShape3D.new()
-	shape.size = Vector3(7.4, 3.5, 6.2)
+	shape.size = Vector3(width, wall_height, depth)
 	collision.shape = shape
-	collision.position.y = 1.7
+	collision.position.y = wall_height * 0.5
 	body.add_child(collision)
 	root.add_child(body)
 
+	_apply_facade_to_node(root, str(store.get("facade", "Gallery")), color)
+
+func _build_category_interior(root: Node3D, store: Dictionary, north: bool) -> void:
+	var cat: String = str(store.get("category", "Fashion"))
+	var width: float = float(store.get("width", 7.5))
+	var depth: float = float(store.get("depth", 6.0))
+	var level: int = int(store.get("level", 1))
+	var center_pos: Vector3 = store.position
+
+	var counter_z: float = (-depth * 0.25) if north else (depth * 0.25)
+	var reg_local := Vector3(-width * 0.25, 0.5, counter_z)
+	_box("Counter", reg_local, Vector3(2.4, 0.9, 0.8), Color("#334155"), 0.3, 0.4, root)
+	_box("Register", reg_local + Vector3(0.5, 0.55, 0), Vector3(0.5, 0.25, 0.45), Color("#0f172a"), 0.6, 0.2, root)
+	store.register_pos = center_pos + reg_local
+
+	var fixtures: Array[Vector3] = []
+	var seat_world := Vector3.ZERO
+
+	match cat:
+		"Dining", "Cafe", "Food":
+			_box("FoodDisplay", reg_local + Vector3(-0.6, 0.52, 0), Vector3(1.1, 0.35, 0.6), Color(0.9, 0.95, 1.0, 0.5), 0.2, 0.1, root, true)
+			fixtures.append(center_pos + reg_local + Vector3(0, 0, 0.8 if north else -0.8))
+
+			# Dining Tables & Chairs
+			var table_xs := [-width * 0.2, width * 0.1, width * 0.3]
+			for tx in table_xs:
+				var tz: float = (depth * 0.15) if north else (-depth * 0.15)
+				_cylinder("DiningTable", Vector3(tx, 0.48, tz), 0.45, 0.1, Color("#9a6c45"), 0.1, 0.6, root)
+				_cylinder("Stool1", Vector3(tx - 0.4, 0.25, tz), 0.16, 0.45, Color("#475569"), 0.2, 0.5, root)
+				_cylinder("Stool2", Vector3(tx + 0.4, 0.25, tz), 0.16, 0.45, Color("#475569"), 0.2, 0.5, root)
+				if seat_world == Vector3.ZERO:
+					seat_world = center_pos + Vector3(tx, 0.15, tz)
+				fixtures.append(center_pos + Vector3(tx, 0.15, tz))
+
+		"Entertainment":
+			var screen_z: float = (-depth * 0.45) if north else (depth * 0.45)
+			var screen := _box("IMAXScreen", Vector3(0, 1.7, screen_z), Vector3(width * 0.85, 2.4, 0.1), Color("#ffffff"), 0.2, 0.1, root)
+			var screen_mat := StandardMaterial3D.new()
+			screen_mat.albedo_color = Color("#0f172a")
+			screen_mat.emission_enabled = true
+			screen_mat.emission = Color("#38bdf8")
+			screen_mat.emission_energy_multiplier = 1.4
+			screen.material_override = screen_mat
+
+			# Stadium Recliner Rows
+			for r in 2:
+				var rz: float = (-depth * 0.15 + r * 1.3) if north else (depth * 0.15 - r * 1.3)
+				for sx in [-width * 0.25, 0.0, width * 0.25]:
+					_box("CinemaSeat", Vector3(sx, 0.45, rz), Vector3(0.75, 0.6, 0.65), Color("#831843"), 0.1, 0.7, root)
+					if seat_world == Vector3.ZERO:
+						seat_world = center_pos + Vector3(sx, 0.15, rz)
+					fixtures.append(center_pos + Vector3(sx, 0.15, rz))
+
+		"Technology", "Specialty":
+			for tx in [-width * 0.2, width * 0.2]:
+				_box("TechTable", Vector3(tx, 0.52, 0.0), Vector3(1.6, 0.85, 2.0), Color("#e2e8f0"), 0.4, 0.2, root)
+				_box("Device1", Vector3(tx - 0.35, 0.98, -0.3), Vector3(0.35, 0.05, 0.45), Color("#38bdf8"), 0.8, 0.1, root)
+				_box("Device2", Vector3(tx + 0.35, 0.98, 0.3), Vector3(0.35, 0.05, 0.45), Color("#a855f7"), 0.8, 0.1, root)
+				fixtures.append(center_pos + Vector3(tx, 0.15, 0.0))
+
+		"Fashion", "Luxury":
+			for rx in [-width * 0.2, width * 0.2]:
+				_box("ClothingRack", Vector3(rx, 0.75, 0.0), Vector3(1.8, 1.3, 0.6), Color("#d97706" if cat == "Luxury" else "#475569"), 0.6, 0.3, root)
+				fixtures.append(center_pos + Vector3(rx, 0.15, 0.0))
+			_cylinder("MannequinPedestal", Vector3(width * 0.35, 0.18, counter_z), 0.35, 0.15, Color("#caa85e"), 0.8, 0.2, root)
+			_cylinder("MannequinBody", Vector3(width * 0.35, 0.8, counter_z), 0.2, 1.1, Color("#fce7f3"), 0.1, 0.4, root)
+
+	if level >= 2:
+		_cylinder("Chandelier", Vector3(0, 3.2, 0), 0.7, 0.15, Color("#facc15"), 0.9, 0.1, root)
+	if level >= 3:
+		_box("GoldTrimLeft", Vector3(-width * 0.5 + 0.05, 3.0, 0), Vector3(0.1, 0.15, depth - 0.4), Color("#caa85e"), 0.9, 0.1, root)
+		_box("GoldTrimRight", Vector3(width * 0.5 - 0.05, 3.0, 0), Vector3(0.1, 0.15, depth - 0.4), Color("#caa85e"), 0.9, 0.1, root)
+
+	store.fixtures = fixtures
+	store.seat_pos = seat_world
+
+func _update_cinema_glow(store: Dictionary, active: bool) -> void:
+	var idx := stores.find(store)
+	if idx < 0: return
+	var root := get_node_or_null("Store_%02d_%s" % [idx, store.name])
+	if root != null and root.has_node("IMAXScreen"):
+		var screen: MeshInstance3D = root.get_node("IMAXScreen")
+		var mat := screen.material_override as StandardMaterial3D
+		if mat != null:
+			mat.emission_energy_multiplier = 3.2 if active else 0.6
+			mat.emission = Color("#f43f5e") if active else Color("#38bdf8")
+
+func _apply_facade_to_node(root: Node3D, style: String, base_color: Color) -> void:
+	if not root.has_node("FacadeBeam"): return
+	var beam: MeshInstance3D = root.get_node("FacadeBeam")
+	var mat := beam.material_override as StandardMaterial3D
+	if mat == null: return
+
+	match style:
+		"Gallery":
+			mat.albedo_color = Color("#0f172a")
+			mat.emission_enabled = false
+			mat.metallic = 0.5
+			mat.roughness = 0.2
+		"Warm":
+			mat.albedo_color = Color("#78350f")
+			mat.emission_enabled = true
+			mat.emission = Color("#d97706")
+			mat.emission_energy_multiplier = 0.3
+			mat.metallic = 0.1
+			mat.roughness = 0.6
+		"Neon":
+			mat.albedo_color = Color("#1e1b4b")
+			mat.emission_enabled = true
+			mat.emission = base_color
+			mat.emission_energy_multiplier = 2.4
+			mat.metallic = 0.7
+			mat.roughness = 0.1
+
 func _build_entrances() -> void:
 	for entry_data in blueprint.get("entrances", []):
-		var entry_position: Array = entry_data.position
+		var entry_pos: Array = entry_data.position
 		var entry_id := str(entry_data.id)
-		entrances[entry_id] = {"name": entry_data.name, "position": Vector3(float(entry_position[0]), 0.0, float(entry_position[1])), "entered": 0, "exited": 0}
-		_build_entrance(entry_id, float(entry_position[0]), float(entry_position[1]), float(entry_data.facing))
+		entrances[entry_id] = {
+			"name": entry_data.name,
+			"position": Vector3(float(entry_pos[0]), 0.0, float(entry_pos[1])),
+			"entered": 0,
+			"exited": 0
+		}
+		_build_entrance_portal(entry_id, float(entry_pos[0]), float(entry_pos[1]), float(entry_data.facing))
 
-func _build_entrance(id: String, x: float, z: float, facing: float) -> void:
+func _build_entrance_portal(id: String, x: float, z: float, facing: float) -> void:
 	var root := Node3D.new()
 	root.name = "%s_entrance" % id
 	root.position = Vector3(x, 0, z)
 	root.rotation_degrees.y = facing
 	add_child(root)
-	_box("PortalTop", Vector3(0, 3.2, 0), Vector3(5.4, 0.55, 0.65), Color("#083344"), 0.5, 0.2, root)
-	_box("PortalLeft", Vector3(-2.45, 1.55, 0), Vector3(0.5, 3.1, 0.65), Color("#164e63"), 0.5, 0.2, root)
-	_box("PortalRight", Vector3(2.45, 1.55, 0), Vector3(0.5, 3.1, 0.65), Color("#164e63"), 0.5, 0.2, root)
-	_box("GlassDoors", Vector3(0, 1.45, 0), Vector3(4.4, 2.8, 0.1), Color(0.45, 0.92, 1.0, 0.28), 0.35, 0.05, root, true)
+
+	_box("PortalTop", Vector3(0, 3.3, 0), Vector3(5.6, 0.6, 0.7), Color("#083344"), 0.5, 0.2, root)
+	_box("PortalLeft", Vector3(-2.55, 1.6, 0), Vector3(0.55, 3.2, 0.7), Color("#164e63"), 0.5, 0.2, root)
+	_box("PortalRight", Vector3(2.55, 1.6, 0), Vector3(0.55, 3.2, 0.7), Color("#164e63"), 0.5, 0.2, root)
+	_box("GlassDoors", Vector3(0, 1.5, 0), Vector3(4.6, 2.9, 0.1), Color(0.45, 0.9, 1.0, 0.3), 0.35, 0.05, root, true)
+
 	var label := Label3D.new()
 	label.text = entrances[id].name.to_upper()
 	label.font_size = 28
 	label.outline_size = 7
 	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
 	label.modulate = Color("#a5f3fc")
-	label.position = Vector3(0, 3.22, 0.38)
+	label.position = Vector3(0, 3.35, 0.42)
 	root.add_child(label)
 
+# ==============================================================================
+# SHOPPER SPAWNING & FOUNTAIN-AVOIDANCE CONCOURSE PATHFINDING
+# ==============================================================================
 func _spawn_shopper(from_west: bool) -> void:
 	var entry := "west" if from_west else "east"
 	var exit := "east" if from_west else "west"
-	var direction := 1.0 if from_west else -1.0
-	var chosen_index := _pick_store_index()
-	var chosen_store := stores[chosen_index]
+
+	var chosen_idx := _pick_weighted_store_index()
+	if chosen_idx < 0 or chosen_idx >= stores.size(): return
+	var chosen_store := stores[chosen_idx]
 	var door: Vector3 = chosen_store.door
-	var corridor_door := Vector3(door.x, 0.05, clampf(door.z, -3.15, 3.15))
-	var start_x := -28.0 if from_west else 28.0
-	var threshold_x := -25.5 if from_west else 25.5
+	var is_north: bool = door.z < 0.0
+	var lane_z: float = -2.8 if is_north else 2.8
+
+	var start_x := -27.0 if from_west else 27.0
+	var thresh_x := -24.0 if from_west else 24.0
+
+	# Concourse route with dual-lane curve around the center court fountain (z = +/- 2.8)
 	var route: Array[Vector3] = [
-		Vector3(start_x, 0.05, 0), Vector3(threshold_x, 0.05, 0), Vector3(door.x - direction * 1.2, 0.05, 0),
-		corridor_door, door, corridor_door, Vector3(-door.x, 0.05, 0), Vector3(-threshold_x, 0.05, 0), Vector3(-start_x, 0.05, 0)
+		Vector3(start_x, 0.05, 0.0),
+		Vector3(thresh_x, 0.05, lane_z * 0.5),
+		Vector3(door.x * 0.5, 0.05, lane_z), # Midpoint lane curving cleanly around fountain
+		Vector3(door.x, 0.05, lane_z),
+		door,
+		Vector3(door.x, 0.05, lane_z),
+		Vector3(-thresh_x * 0.5, 0.05, lane_z),
+		Vector3(-thresh_x, 0.05, lane_z * 0.5),
+		Vector3(-start_x, 0.05, 0.0)
 	]
-	var shopper := Shopper.new()
+
+	var shopper: Node3D = _spawn_shopper_node()
+
 	add_child(shopper)
-	shopper.configure(route, entry, exit, chosen_index, 3.6 / maxf(1.0, float(chosen_store.staff)), SHOPPER_COLORS[randi() % SHOPPER_COLORS.size()])
+
+	shopper.configure(route, entry, exit, chosen_idx, chosen_store, cleanliness, security)
+	shopper.set_store_interior_targets(chosen_store.get("fixtures", []), chosen_store.get("register_pos", Vector3.ZERO), chosen_store.get("seat_pos", Vector3.ZERO))
 	shopper.finished_visit.connect(_on_shopper_finished)
-	entrances[entry].entered += 1
+	shopper.coin_tossed_in_fountain.connect(_on_fountain_coin_tossed)
+
+	if entrances.has(entry):
+		entrances[entry].entered += 1
 	active_shoppers += 1
-	_refresh_ui()
+	_refresh_stats_hud()
 
-func _on_shopper_finished(_entry: String, exit: String, store_index: int) -> void:
-	entrances[exit].exited += 1
-	if store_index >= 0 and store_index < stores.size():
-		var store := stores[store_index]
-		var price_multiplier := 0.82 if store.price == "Value" else 1.28 if store.price == "Premium" else 1.0
-		var stock_multiplier := 0.42 if store.stock < 15.0 else 1.0
-		var sale := roundi(randf_range(42.0, 96.0) * price_multiplier * stock_multiplier)
-		store.stock = maxf(0.0, store.stock - randf_range(1.4, 3.2))
-		store.satisfaction = clampi(store.satisfaction + (1 if store.price == "Value" else -1 if store.price == "Premium" else 0), 45, 100)
-		cash += roundi(sale * 0.24)
+func _on_fountain_coin_tossed(pos: Vector3) -> void:
+	cash += 1
+	reputation = mini(100, reputation + 1)
+	sound_mgr.play_cash()
+	_spawn_floating_revenue(1, pos + Vector3(0, 1.2, 0), Color("#67e8f9"))
+
+func _on_shopper_finished(_entry: String, exit: String, s_index: int, purchased: bool, amount: int, rating_shift: int) -> void:
+	if entrances.has(exit):
+		entrances[exit].exited += 1
+
+	if s_index >= 0 and s_index < stores.size():
+		var store := stores[s_index]
+		store.satisfaction = clampi(int(store.get("satisfaction", 95)) + rating_shift, 30, 100)
+
+		if purchased and amount > 0:
+			var player_cut := roundi(amount * 0.24)
+			cash += player_cut
+			total_sales += amount
+			store.revenue = int(store.get("revenue", 0)) + amount
+			store.served = int(store.get("served", 0)) + 1
+			store.stock = maxf(0.0, float(store.get("stock", 100.0)) - randf_range(1.5, 3.5))
+
+			_spawn_floating_revenue(player_cut, store.position + Vector3(0, 1.8, 0), Color("#34d399"))
+			sound_mgr.play_cash()
+
 	active_shoppers = maxi(0, active_shoppers - 1)
-	_refresh_ui()
+	_refresh_stats_hud()
+	if current_drawer == "inspector":
+		_render_drawer_content()
 
-func _pick_store_index() -> int:
+func _spawn_floating_revenue(amount: int, world_pos: Vector3, col := Color("#34d399")) -> void:
+	var label := Label3D.new()
+	label.text = "+$%d" % amount
+	label.font_size = 38
+	label.outline_size = 8
+	label.modulate = col
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.position = world_pos
+	add_child(label)
+
+	var tween := create_tween()
+	tween.set_parallel(true)
+	tween.tween_property(label, "position:y", world_pos.y + 2.2, 1.4)
+	tween.tween_property(label, "modulate:a", 0.0, 1.4).set_ease(Tween.EASE_IN)
+	tween.chain().tween_callback(label.queue_free)
+
+# ==============================================================================
+# TYCOON STRATEGIC DIFFICULTY: SYNERGY, CANNIBALIZATION & DRAW MATRIX
+# ==============================================================================
+func _calculate_total_mall_draw() -> int:
+	var total := 0
+	for i in stores.size():
+		total += _calculate_single_store_draw(i)
+	return total
+
+func _calculate_single_store_draw(idx: int) -> int:
+	var s := stores[idx]
+	var base_draw: float = float(s.get("draw", 35))
+	var mult := 1.5 if float(s.get("promotion", 0.0)) > 0.0 else 1.0
+	var stock_pen := 0.3 if float(s.get("stock", 100.0)) < 15.0 else 1.0
+
+	# 1. Food Court & Fashion Row Synergy Bonuses
+	var cat: String = str(s.get("category", ""))
+	var same_cat_neighbors := 0
+	for j in stores.size():
+		if idx == j: continue
+
+		var other := stores[j]
+		if str(other.get("category", "")) == cat:
+			if s.position.distance_to(other.position) < 14.0:
+				same_cat_neighbors += 1
+
+	var synergy_bonus := 1.0
+	if same_cat_neighbors == 1 or same_cat_neighbors == 2:
+		synergy_bonus = 1.20 # Food court or fashion row synergy!
+	elif same_cat_neighbors >= 3:
+		synergy_bonus = 0.70 # Cannibalization penalty for oversaturating!
+
+	# 2. Mega Anchor Foot-Traffic Halo
+	var anchor_halo := 1.0
+	for other in stores:
+		if other.get("lot_type", "") == "mega_anchor" and s.get("lot_type", "") != "mega_anchor":
+			if s.position.distance_to(other.position) < 16.0:
+				anchor_halo = 1.25 # Adjacent anchor halo draw!
+				break
+
+	return int(base_draw * mult * stock_pen * synergy_bonus * anchor_halo)
+
+func _pick_weighted_store_index() -> int:
 	var candidates: Array[int] = []
-	for index in stores.size():
-		var store := stores[index]
-		var weight := 3
-		if store.price == "Value": weight += 2
-		if store.price == "Premium": weight -= 1
-		if store.promotion > 0.0: weight += 5
-		if store.stock < 15.0: weight = 1
-		for count in maxi(1, weight): candidates.append(index)
-	return candidates[randi() % candidates.size()]
+	for i in stores.size():
+		var weight := maxi(1, _calculate_single_store_draw(i) / 7)
+		for count in weight:
+			candidates.append(i)
+	return candidates[randi() % candidates.size()] if candidates.size() > 0 else 0
 
-func _build_ui() -> void:
-	var ui := $UI
-	var top := _panel(Vector2(18, 16), Vector2(1244, 68), Color(0.035, 0.055, 0.09, 0.94))
-	ui.add_child(top)
-	var brand := _label("AURORA  /  MALL TYCOON", 22, Color("#f8fafc"))
-	brand.position = Vector2(24, 18)
-	top.add_child(brand)
-	var mode := _label("NATIVE 3D · OPERATING VIEW", 11, Color("#67e8f9"))
-	mode.position = Vector2(330, 24)
-	top.add_child(mode)
-	speed_label = _label("1×", 12, Color("#cbd5e1"))
-	speed_label.position = Vector2(568, 24)
-	top.add_child(speed_label)
-	var pause_button := _button("Ⅱ", Vector2(610, 13), Vector2(42, 40))
-	pause_button.pressed.connect(_set_simulation_speed.bind(0.0))
-	top.add_child(pause_button)
-	var normal_button := _button("1×", Vector2(658, 13), Vector2(48, 40))
-	normal_button.pressed.connect(_set_simulation_speed.bind(1.0))
-	top.add_child(normal_button)
-	var fast_button := _button("2×", Vector2(712, 13), Vector2(48, 40))
-	fast_button.pressed.connect(_set_simulation_speed.bind(2.0))
-	top.add_child(fast_button)
-	var save_button := _button("SAVE", Vector2(772, 13), Vector2(72, 40))
-	save_button.pressed.connect(_save_game)
-	top.add_child(save_button)
-	cash_label = _label("", 17, Color("#fbbf24"))
-	cash_label.position = Vector2(870, 19)
-	top.add_child(cash_label)
-	visitor_label = _label("", 14, Color("#a7f3d0"))
-	visitor_label.position = Vector2(1034, 21)
-	top.add_child(visitor_label)
+# ==============================================================================
+# OPERATIONS, HEALTH FINES, SHOPLIFTING & WEEKLY ACCOUNTING
+# ==============================================================================
+func _process_weekly_accounting() -> void:
+	var total_rent := 0
+	for s in stores:
+		var base_r := 750 if s.get("lot_type", "") == "mega_anchor" else 180 if s.get("lot_type", "") == "kiosk" else 380
+		total_rent += roundi(base_r * (1.0 + (float(s.get("level", 1)) - 1.0) * 0.6))
 
-	var manager := _panel(Vector2(930, 100), Vector2(332, 504), Color(0.035, 0.055, 0.09, 0.95))
-	ui.add_child(manager)
-	var flow := _panel(Vector2(18, 100), Vector2(238, 150), Color(0.035, 0.055, 0.09, 0.92))
-	ui.add_child(flow)
-	var flow_title := _label("ENTRANCE NETWORK", 11, Color("#67e8f9"))
-	flow_title.position = Vector2(18, 16)
-	flow.add_child(flow_title)
-	flow_label = _label("", 12, Color("#cbd5e1"))
-	flow_label.position = Vector2(18, 43)
-	flow_label.size = Vector2(202, 92)
-	flow_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	flow.add_child(flow_label)
-	var eyebrow := _label("STORE OPERATIONS", 11, Color("#67e8f9"))
-	eyebrow.position = Vector2(22, 19)
-	manager.add_child(eyebrow)
-	store_title = _label("", 25, Color("#ffffff"))
-	store_title.position = Vector2(22, 42)
-	manager.add_child(store_title)
-	store_detail = _label("", 12, Color("#94a3b8"))
-	store_detail.position = Vector2(22, 80)
-	store_detail.size = Vector2(288, 66)
-	store_detail.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	manager.add_child(store_detail)
-	var price_title := _label("PRICING STRATEGY", 10, Color("#94a3b8"))
-	price_title.position = Vector2(22, 151)
-	manager.add_child(price_title)
-	for index in 3:
-		var price: String = ["Value", "Market", "Premium"][index]
-		var button := _button(price, Vector2(22 + index * 98, 171), Vector2(91, 38))
-		button.pressed.connect(_set_price.bind(price))
-		manager.add_child(button)
-	var staff_title := _label("SERVICE TEAM", 10, Color("#94a3b8"))
-	staff_title.position = Vector2(22, 226)
-	manager.add_child(staff_title)
-	var remove_staff := _button("− Staff", Vector2(22, 246), Vector2(91, 38))
-	remove_staff.pressed.connect(_change_staff.bind(-1))
-	manager.add_child(remove_staff)
-	var add_staff := _button("+ Staff", Vector2(120, 246), Vector2(91, 38))
-	add_staff.pressed.connect(_change_staff.bind(1))
-	manager.add_child(add_staff)
-	var restock := _button("Restock · $240", Vector2(218, 246), Vector2(92, 38))
-	restock.pressed.connect(_restock)
-	manager.add_child(restock)
-	stock_bar = ProgressBar.new()
-	stock_bar.position = Vector2(22, 302)
-	stock_bar.size = Vector2(288, 12)
-	stock_bar.show_percentage = false
-	manager.add_child(stock_bar)
-	campaign_button = _button("Launch local campaign · $450", Vector2(22, 333), Vector2(288, 44))
-	campaign_button.pressed.connect(_campaign)
-	manager.add_child(campaign_button)
-	var facade_title := _label("STOREFRONT CONCEPT", 10, Color("#94a3b8"))
-	facade_title.position = Vector2(22, 397)
-	manager.add_child(facade_title)
-	for index in 3:
-		var facade: String = ["Gallery", "Warm", "Neon"][index]
-		var button := _button(facade, Vector2(22 + index * 98, 418), Vector2(91, 38))
-		button.pressed.connect(_set_facade.bind(facade))
-		manager.add_child(button)
+	var amenity_income := placed_amenities.size() * 65
+	var payroll := 0
+	for s in stores:
+		payroll += int(s.get("staff", 2)) * 85 # $85/staff weekly payroll
 
-	var dock := _panel(Vector2(18, 624), Vector2(1244, 78), Color(0.035, 0.055, 0.09, 0.95))
-	ui.add_child(dock)
-	store_buttons = HBoxContainer.new()
-	store_buttons.position = Vector2(16, 13)
-	store_buttons.size = Vector2(1212, 52)
-	store_buttons.add_theme_constant_override("separation", 8)
-	dock.add_child(store_buttons)
-	for index in stores.size():
-		var button := _button(stores[index].name, Vector2.ZERO, Vector2(188, 50))
-		button.pressed.connect(_select_store.bind(index))
-		store_buttons.add_child(button)
+	var maintenance := roundi(stores.size() * 50 + (100 - cleanliness) * 6 + (100 - security) * 5 + payroll)
+	var net_profit := total_rent + amenity_income - maintenance
 
-func _select_store(index: int) -> void:
-	selected_store = index
-	_update_store_selection_visuals()
-	_refresh_ui()
+	cash += net_profit
+	cleanliness = maxi(15, cleanliness - 4)
+	security = maxi(15, security - 3)
 
-func _select_store_at_screen(screen_position: Vector2) -> void:
-	var camera := $CameraRig/Camera3D as Camera3D
-	var origin := camera.project_ray_origin(screen_position)
-	var destination := origin + camera.project_ray_normal(screen_position) * 200.0
-	var query := PhysicsRayQueryParameters3D.create(origin, destination)
-	var result := get_world_3d().direct_space_state.intersect_ray(query)
-	if result.has("collider") and result.collider.has_meta("store_index"):
-		_select_store(int(result.collider.get_meta("store_index")))
-
-func _update_store_selection_visuals() -> void:
-	for index in stores.size():
-		var store_node := get_node_or_null("Store_%02d_%s" % [index, stores[index].name])
-		if store_node:
-			store_node.get_node("Selection").visible = index == selected_store
-
-func _set_price(strategy: String) -> void:
-	stores[selected_store].price = strategy
+	sound_mgr.play_doorbell()
+	_add_event(
+		"Week %d Accounting Statement" % week,
+		"Rent: +$%s · Amenities: +$%s · Payroll/Maint: -$%s · Net: %s$%s" % [
+			_comma(total_rent), _comma(amenity_income), _comma(maintenance),
+			"+" if net_profit >= 0 else "-", _comma(abs(net_profit))
+		],
+		"finance"
+	)
 	_save_game()
-	_refresh_ui()
+	_refresh_stats_hud()
 
-func _change_staff(delta: int) -> void:
-	var store := stores[selected_store]
+func _trigger_health_inspection_penalty() -> void:
+	var fine := 1200
+	cash = maxi(0, cash - fine)
+	reputation = maxi(20, reputation - 10)
+	sound_mgr.play_error()
+	_add_event("🚨 Municipal Health Citation", "Mall cleanliness fell below health standards! Fined $%s." % _comma(fine), "warning")
+	_refresh_stats_hud()
+
+func _trigger_shoplifting_incident() -> void:
+	var lost := randi_range(300, 600)
+	cash = maxi(0, cash - lost)
+	reputation = maxi(20, reputation - 6)
+	sound_mgr.play_error()
+	_add_event("🚨 Security Incident Reported", "Shoplifting wave detected in concourse wings. Losses: -$%d." % lost, "warning")
+	_refresh_stats_hud()
+
+func _trigger_daily_event() -> void:
+	var ev_type := randi() % 3
+	match ev_type:
+		0:
+			reputation = mini(100, reputation + 4)
+			for i in 8: _spawn_shopper(i % 2 == 0)
+			_add_event("Dining Critic Rave Review", "Food critic praised the culinary court! Reputation +4.", "info")
+		1:
+			cleanliness = mini(100, cleanliness + 12)
+			cash += 600
+			_add_event("Municipal Beautification Grant", "Mall architecture & fountain awarded grant! +$600.", "info")
+		2:
+			reputation = mini(100, reputation + 5)
+			for i in 12: _spawn_shopper(i % 2 == 0)
+			_add_event("Weekend Mall Festival", "Wave of weekend shoppers arriving for the atrium expo!", "info")
+	_refresh_stats_hud()
+
+func _perform_mall_action(action: String) -> void:
+	match action:
+		"clean":
+			if cash < 250:
+				sound_mgr.play_error()
+				return
+			cash -= 250
+			cleanliness = mini(100, cleanliness + 25)
+			sound_mgr.play_place()
+			_add_event("Concourse Buffing Crew", "Floors polished to a sparkling shine. Cleanliness +25%", "success")
+		"security":
+			if cash < 350:
+				sound_mgr.play_error()
+				return
+			cash -= 350
+			security = mini(100, security + 20)
+			sound_mgr.play_place()
+			_add_event("Security Patrols Deployed", "Concourse patrols reinforced across all wings. Security +20%", "success")
+		"campaign":
+			if cash < 600:
+				sound_mgr.play_error()
+				return
+			cash -= 600
+			reputation = mini(100, reputation + 8)
+			for i in 14: _spawn_shopper(i % 2 == 0)
+			sound_mgr.play_upgrade()
+			_add_event("Regional Advertising Blitz", "Billboards and social campaigns live. Surge of guests arriving!", "success")
+
+	_save_game()
+	_refresh_stats_hud()
+	if current_drawer == "ops":
+		_render_drawer_content()
+
+# ==============================================================================
+# STORE OPERATIONS & UPGRADES
+# ==============================================================================
+func _upgrade_selected_store() -> void:
+	if selected_store_idx < 0 or selected_store_idx >= stores.size(): return
+	var store := stores[selected_store_idx]
+	var cur_lvl := int(store.get("level", 1))
+	if cur_lvl >= 3: return
+
+	var tenant_def := _find_tenant_by_id(str(store.get("tenant_id", "")))
+	var upgrades: Array = tenant_def.get("upgrades", [])
+	var upgrade_data: Dictionary = {}
+	for u in upgrades:
+		if int(u.get("tier", 0)) == cur_lvl + 1:
+			upgrade_data = u
+			break
+
+	var cost := int(upgrade_data.get("cost", 2400))
+	if cash < cost:
+		sound_mgr.play_error()
+		return
+
+	cash -= cost
+	store.level = cur_lvl + 1
+	store.staff = int(store.get("staff", 2)) + 1
+	store.satisfaction = mini(100, int(store.get("satisfaction", 95)) + 8)
+	reputation = mini(100, reputation + 6)
+
+	var north: bool = float(store.position.z) < 0.0
+	_build_store_model(selected_store_idx, store, north)
+	sound_mgr.play_upgrade()
+	_add_event("Store Upgraded", "%s upgraded to Tier %d: %s!" % [store.name, store.level, upgrade_data.get("name", "Flagship")], "success")
+
+	_save_game()
+	_refresh_stats_hud()
+	_render_drawer_content()
+
+func _set_store_price(strat: String) -> void:
+	stores[selected_store_idx].price = strat
+	sound_mgr.play_click()
+	_save_game()
+	_render_drawer_content()
+
+func _change_store_staff(delta: int) -> void:
+	var s := stores[selected_store_idx]
+	var cur := int(s.get("staff", 2))
 	if delta > 0 and cash >= 300:
 		cash -= 300
-		store.staff += 1
-	elif delta < 0 and store.staff > 1:
-		store.staff -= 1
+		s.staff = cur + 1
+		sound_mgr.play_place()
+	elif delta < 0 and cur > 1:
+		s.staff = cur - 1
 		cash += 100
+		sound_mgr.play_click()
+	else:
+		sound_mgr.play_error()
+		return
 	_save_game()
-	_refresh_ui()
+	_refresh_stats_hud()
+	_render_drawer_content()
 
-func _restock() -> void:
-	if cash < 240: return
+func _restock_store() -> void:
+	if cash < 240:
+		sound_mgr.play_error()
+		return
 	cash -= 240
-	stores[selected_store].stock = 100.0
+	stores[selected_store_idx].stock = 100.0
+	sound_mgr.play_place()
+	_add_event("Inventory Restocked", "%s received full replenishment." % stores[selected_store_idx].name, "success")
 	_save_game()
-	_refresh_ui()
+	_refresh_stats_hud()
+	_render_drawer_content()
 
-func _campaign() -> void:
-	if cash < 450: return
+func _launch_store_promotion() -> void:
+	if cash < 450:
+		sound_mgr.play_error()
+		return
 	cash -= 450
-	stores[selected_store].promotion = 25.0
-	for index in 6: _spawn_shopper(index % 2 == 0)
+	stores[selected_store_idx].promotion = 28.0
+	for i in 8: _spawn_shopper(i % 2 == 0)
+	sound_mgr.play_upgrade()
+	_add_event("Local Campaign Live", "%s foot traffic boosted!" % stores[selected_store_idx].name, "success")
 	_save_game()
-	_refresh_ui()
+	_refresh_stats_hud()
+	_render_drawer_content()
 
-func _set_facade(style: String) -> void:
-	if stores[selected_store].facade == style or cash < 325: return
+func _set_store_facade(style: String) -> void:
+	var s := stores[selected_store_idx]
+	if str(s.get("facade", "")) == style or cash < 325:
+		if str(s.get("facade", "")) != style: sound_mgr.play_error()
+		return
 	cash -= 325
-	stores[selected_store].facade = style
-	var store_node := get_node("Store_%02d_%s" % [selected_store, stores[selected_store].name])
-	var beam: MeshInstance3D = store_node.get_node("FacadeBeam")
-	var material := beam.material_override as StandardMaterial3D
-	material.albedo_color = Color("#111827") if style == "Gallery" else Color("#9a5b38") if style == "Warm" else Color("#312e81")
-	material.emission_enabled = style == "Neon"
-	material.emission = stores[selected_store].color
-	material.emission_energy_multiplier = 2.3 if style == "Neon" else 0.0
+	s.facade = style
+	var root := get_node_or_null("Store_%02d_%s" % [selected_store_idx, s.name])
+	if root != null:
+		_apply_facade_to_node(root, style, s.color)
+	sound_mgr.play_place()
+	_add_event("Facade Renovated", "%s debuted %s storefront concept." % [s.name, style], "success")
 	_save_game()
-	_refresh_ui()
+	_refresh_stats_hud()
+	_render_drawer_content()
+
+func _lease_tenant_into_store(tenant: Dictionary) -> void:
+	var cost := int(tenant.get("cost", 1500))
+	if cash < cost:
+		sound_mgr.play_error()
+		return
+	cash -= cost
+
+	var s := stores[selected_store_idx]
+	s.name = str(tenant.get("name", "Store"))
+	s.category = str(tenant.get("category", "Fashion"))
+	s.base_income = int(tenant.get("base_income", 100))
+	s.draw = int(tenant.get("draw", 35))
+	s.tenant_id = str(tenant.get("id", "generic"))
+	s.level = 1
+	s.staff = int(tenant.get("base_staff", 2))
+	s.stock = 100.0
+	s.revenue = 0
+	s.served = 0
+	s.facade = "Neon" if s.category == "Entertainment" else "Warm" if s.category == "Food" else "Gallery"
+
+	if s.category == "Entertainment":
+		s["cinema_state"] = {"movie": "Interstellar Echoes 4DX", "phase": "box_office", "timer": 20.0}
+	else:
+		s.erase("cinema_state")
+
+	var north: bool = float(s.position.z) < 0.0
+	_build_store_model(selected_store_idx, s, north)
+	reputation = mini(100, reputation + 5)
+	sound_mgr.play_upgrade()
+	_add_event("New Tenant Leased", "%s opened in %s!" % [s.name, s.category], "success")
+
+	_save_game()
+	_refresh_stats_hud()
+	_open_drawer("inspector")
+
+# ==============================================================================
+# AMENITIES & CONCOURSE PLACEMENT
+# ==============================================================================
+func _place_amenity_at_screen(screen_pos: Vector2) -> void:
+	var camera := $CameraRig/Camera3D as Camera3D
+	var origin := camera.project_ray_origin(screen_pos)
+	var dir := camera.project_ray_normal(screen_pos)
+	var plane := Plane(Vector3.UP, 0.0)
+	var hit = plane.intersects_ray(origin, dir)
+	if hit != null:
+		var hit_pos: Vector3 = hit
+		var amen_def := _find_amenity_by_type(selected_place_amenity)
+		if amen_def.is_empty(): return
+
+		var cost := int(amen_def.get("cost", 300))
+		if cash < cost:
+			sound_mgr.play_error()
+			return
+
+		cash -= cost
+		reputation = mini(100, reputation + int(amen_def.get("reputation_bonus", 4)))
+		cleanliness = mini(100, cleanliness + int(amen_def.get("cleanliness_bonus", 0)))
+
+		var amenity_inst := {
+			"type": selected_place_amenity,
+			"name": amen_def.get("name", "Amenity"),
+			"position": hit_pos
+		}
+		placed_amenities.append(amenity_inst)
+		_build_amenity_model(placed_amenities.size() - 1, amenity_inst)
+		sound_mgr.play_place()
+		_add_event("Amenity Placed", "Installed %s on concourse." % amenity_inst.name, "success")
+
+		selected_place_amenity = ""
+		_save_game()
+		_refresh_stats_hud()
+		_render_drawer_content()
+
+func _build_amenity_model(idx: int, amen: Dictionary) -> void:
+	var root := Node3D.new()
+	root.name = "Amenity_%02d_%s" % [idx, amen.type]
+	root.position = amen.position
+	add_child(root)
+
+	match str(amen.type):
+		"palm_planter":
+			_cylinder("PlanterPot", Vector3(0, 0.35, 0), 0.55, 0.7, Color("#0d9488"), 0.2, 0.4, root)
+			_cylinder("PalmTrunk", Vector3(0, 1.4, 0), 0.12, 1.8, Color("#78350f"), 0.0, 0.8, root)
+			_sphere("PalmFoliage", Vector3(0, 2.4, 0), 0.9, Color("#22c55e"), 0.0, 0.7, root)
+		"rest_bench":
+			_box("BenchSeat", Vector3(0, 0.4, 0), Vector3(1.8, 0.1, 0.6), Color("#b45309"), 0.1, 0.6, root)
+			_box("BenchLeg1", Vector3(-0.7, 0.2, 0), Vector3(0.12, 0.4, 0.55), Color("#1e293b"), 0.6, 0.2, root)
+			_box("BenchLeg2", Vector3(0.7, 0.2, 0), Vector3(0.12, 0.4, 0.55), Color("#1e293b"), 0.6, 0.2, root)
+		"atm_kiosk":
+			_box("ATMBody", Vector3(0, 0.9, 0), Vector3(0.8, 1.8, 0.7), Color("#1e293b"), 0.5, 0.2, root)
+			_box("ATMScreen", Vector3(0, 1.2, 0.36), Vector3(0.5, 0.35, 0.05), Color("#38bdf8"), 0.8, 0.1, root)
+		"coffee_cart", "boba_pop_up":
+			_box("CartBase", Vector3(0, 0.5, 0), Vector3(1.6, 1.0, 1.1), Color("#b45309"), 0.2, 0.5, root)
+			_box("Canopy", Vector3(0, 1.9, 0), Vector3(1.9, 0.15, 1.3), Color("#f59e0b"), 0.1, 0.6, root)
+		_:
+			_cylinder("AmenityPedestal", Vector3(0, 0.4, 0), 0.6, 0.8, Color("#0284c7"), 0.4, 0.2, root)
+
+# ==============================================================================
+# RAYCAST SELECTION
+# ==============================================================================
+func _select_store_at_screen(screen_pos: Vector2) -> void:
+	var camera := $CameraRig/Camera3D as Camera3D
+	var origin := camera.project_ray_origin(screen_pos)
+	var dest := origin + camera.project_ray_normal(screen_pos) * 250.0
+	var query := PhysicsRayQueryParameters3D.create(origin, dest)
+	var result := get_world_3d().direct_space_state.intersect_ray(query)
+
+	if result.has("collider") and result.collider.has_meta("store_index"):
+		var idx: int = int(result.collider.get_meta("store_index"))
+		_select_store(idx)
+		sound_mgr.play_click()
+
+func _select_store(idx: int) -> void:
+	selected_store_idx = clampi(idx, 0, stores.size() - 1)
+	_update_store_selection_visuals()
+	_open_drawer("inspector")
+
+	var store := stores[selected_store_idx]
+	camera_target_pos = Vector3(store.position.x * 0.4, 0, store.position.z * 0.4)
+
+func _update_store_selection_visuals() -> void:
+	for i in stores.size():
+		var node := get_node_or_null("Store_%02d_%s" % [i, stores[i].name])
+		if node != null and node.has_node("Selection"):
+			node.get_node("Selection").visible = i == selected_store_idx
+
+# ==============================================================================
+# UI CREATION & MOBILE HUD DRAWERS
+# ==============================================================================
+func _build_ui() -> void:
+	ui_root = $UI
+	for child in ui_root.get_children():
+		child.queue_free()
+
+	# 1. Top Bar
+	var top := _panel(Vector2(14, 12), Vector2(1252, 64), Color(0.04, 0.06, 0.1, 0.94))
+	ui_root.add_child(top)
+
+	var brand_logo := _label("AURORA", 20, Color("#ffffff"), true)
+	brand_logo.position = Vector2(20, 10)
+	top.add_child(brand_logo)
+
+	var brand_sub := _label("MALL TYCOON 3D", 10, Color("#38bdf8"))
+	brand_sub.position = Vector2(20, 36)
+	top.add_child(brand_sub)
+
+	date_label = _label("W1 · D1", 14, Color("#cbd5e1"), true)
+	date_label.position = Vector2(175, 20)
+	top.add_child(date_label)
+
+	cash_label = _label("$28,000", 17, Color("#fbbf24"), true)
+	cash_label.position = Vector2(275, 18)
+	top.add_child(cash_label)
+
+	guests_label = _label("0 GUESTS", 12, Color("#34d399"))
+	guests_label.position = Vector2(415, 22)
+	top.add_child(guests_label)
+
+	rep_label = _label("76% REP", 12, Color("#a78bfa"))
+	rep_label.position = Vector2(515, 22)
+	top.add_child(rep_label)
+
+	clean_label = _label("95% CLN", 12, Color("#38bdf8"))
+	clean_label.position = Vector2(605, 22)
+	top.add_child(clean_label)
+
+	# Sim Speed Controls
+	var pause_btn := _button("Ⅱ", Vector2(705, 12), Vector2(38, 38))
+	pause_btn.pressed.connect(_set_sim_speed.bind(0.0))
+	top.add_child(pause_btn)
+
+	var speed1_btn := _button("1×", Vector2(748, 12), Vector2(42, 38))
+	speed1_btn.pressed.connect(_set_sim_speed.bind(1.0))
+	top.add_child(speed1_btn)
+
+	var speed2_btn := _button("2×", Vector2(795, 12), Vector2(42, 38))
+	speed2_btn.pressed.connect(_set_sim_speed.bind(2.0))
+	top.add_child(speed2_btn)
+
+	speed_label = _label("1×", 12, Color("#38bdf8"))
+	speed_label.position = Vector2(845, 22)
+	top.add_child(speed_label)
+
+	# Sound Toggle & Save
+	sound_btn = _button("🔊 SOUND", Vector2(880, 12), Vector2(85, 38))
+	sound_btn.pressed.connect(_toggle_sound)
+	top.add_child(sound_btn)
+
+	var save_btn := _button("💾 SAVE", Vector2(972, 12), Vector2(78, 38))
+	save_btn.pressed.connect(_save_game)
+	top.add_child(save_btn)
+
+	# 2. Bottom Drawer Navigation Bar
+	var nav_bar := _panel(Vector2(14, 642), Vector2(1252, 66), Color(0.04, 0.06, 0.1, 0.96))
+	ui_root.add_child(nav_bar)
+
+	var nav_hbox := HBoxContainer.new()
+	nav_hbox.position = Vector2(14, 10)
+	nav_hbox.size = Vector2(1224, 46)
+	nav_hbox.add_theme_constant_override("separation", 10)
+	nav_bar.add_child(nav_hbox)
+
+	var tabs := [
+		{"id": "inspector", "label": "🏪 STORE INSPECTOR"},
+		{"id": "directory", "label": "📋 LEASING DIRECTORY"},
+		{"id": "architect", "label": "📐 ARCHITECT & AMENITIES"},
+		{"id": "ops", "label": "⚙️ OPERATIONS & HEALTH"},
+		{"id": "feed", "label": "📜 EVENTS FEED"}
+	]
+
+	for tab in tabs:
+		var btn := _button(tab.label, Vector2.ZERO, Vector2(234, 44))
+		btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btn.pressed.connect(_open_drawer.bind(tab.id))
+		nav_hbox.add_child(btn)
+
+	# 3. Interactive Main Side Drawer Panel
+	drawer_panel = _panel(Vector2(880, 88), Vector2(386, 542), Color(0.03, 0.05, 0.09, 0.96))
+	ui_root.add_child(drawer_panel)
+
+	drawer_title = _label("STORE OPERATIONS", 16, Color("#38bdf8"), true)
+	drawer_title.position = Vector2(20, 16)
+	drawer_panel.add_child(drawer_title)
+
+	drawer_content = Control.new()
+	drawer_content.position = Vector2(20, 48)
+	drawer_content.size = Vector2(346, 474)
+	drawer_panel.add_child(drawer_content)
+
+	# 4. Toast Alerts Container
+	toast_container = VBoxContainer.new()
+	toast_container.position = Vector2(24, 88)
+	toast_container.size = Vector2(340, 300)
+	toast_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	ui_root.add_child(toast_container)
+
+	_render_drawer_content()
+
+func _open_drawer(drawer_id: String) -> void:
+	current_drawer = drawer_id
+	sound_mgr.play_click()
+	_render_drawer_content()
+
+func _render_drawer_content() -> void:
+	if drawer_content == null: return
+	for child in drawer_content.get_children():
+		child.queue_free()
+
+	match current_drawer:
+		"inspector":
+			drawer_title.text = "STORE OPERATIONS & LEASING"
+			_render_inspector_drawer()
+		"directory":
+			drawer_title.text = "TENANT LEASING CATALOG"
+			_render_directory_drawer()
+		"architect":
+			drawer_title.text = "CONCOURSE AMENITIES & DESIGN"
+			_render_architect_drawer()
+		"ops":
+			drawer_title.text = "MALL OPERATIONS & ACCOUNTING"
+			_render_ops_drawer()
+		"feed":
+			drawer_title.text = "MALL NOTIFICATIONS & LOGS"
+			_render_feed_drawer()
+
+func _render_inspector_drawer() -> void:
+	if selected_store_idx < 0 or selected_store_idx >= stores.size(): return
+	var s := stores[selected_store_idx]
+
+	var lot_name := "MEGA ANCHOR" if s.get("lot_type", "") == "mega_anchor" else "FLAGSHIP" if s.get("lot_type", "") == "flagship" else "BOUTIQUE" if s.get("lot_type", "") == "boutique" else "STANDARD"
+	var title := _label("%s" % s.name, 19, Color("#ffffff"), true)
+	title.position = Vector2(0, 0)
+	drawer_content.add_child(title)
+
+	var sub := _label("%s · %s · Tier %d · %d Staff" % [s.category, lot_name, s.level, s.staff], 11, s.color)
+	sub.position = Vector2(0, 26)
+	drawer_content.add_child(sub)
+
+	var draw_val := _calculate_single_store_draw(selected_store_idx)
+	var rev_lbl := _label("Revenue: $%s · Served: %d · Draw: %d" % [_comma(int(s.get("revenue", 0))), int(s.get("served", 0)), draw_val], 10, Color("#94a3b8"))
+	rev_lbl.position = Vector2(0, 48)
+	drawer_content.add_child(rev_lbl)
+
+	# Tier Upgrade Card
+	if int(s.level) < 3:
+		var up_btn := _button("★ Upgrade to Tier %d · $2,400" % (int(s.level) + 1), Vector2(0, 74), Vector2(346, 38))
+		up_btn.pressed.connect(_upgrade_selected_store)
+		drawer_content.add_child(up_btn)
+	else:
+		var max_lbl := _label("★ MAXIMUM FLAGSHIP PALACE (TIER 3)", 11, Color("#fbbf24"), true)
+		max_lbl.position = Vector2(0, 82)
+		drawer_content.add_child(max_lbl)
+
+	# Pricing Strategy
+	var price_title := _label("PRICING STRATEGY (AFFECTS SHOPPER PERSONALITIES)", 10, Color("#94a3b8"))
+	price_title.position = Vector2(0, 122)
+	drawer_content.add_child(price_title)
+
+	var cur_p: String = str(s.get("price", "Market"))
+	for i in 3:
+		var p_name: String = ["Value", "Market", "Premium"][i]
+		var btn := _button(p_name, Vector2(i * 118, 142), Vector2(110, 36))
+		if p_name == cur_p:
+			btn.modulate = Color("#38bdf8")
+		btn.pressed.connect(_set_store_price.bind(p_name))
+		drawer_content.add_child(btn)
+
+	# Service Team Staffing
+	var staff_title := _label("SERVICE STAFFING ($85/WK EACH)", 10, Color("#94a3b8"))
+	staff_title.position = Vector2(0, 192)
+	drawer_content.add_child(staff_title)
+
+	var rm_staff := _button("− Staff", Vector2(0, 212), Vector2(108, 36))
+	rm_staff.pressed.connect(_change_store_staff.bind(-1))
+	drawer_content.add_child(rm_staff)
+
+	var add_staff := _button("+ Staff ($300)", Vector2(118, 212), Vector2(110, 36))
+	add_staff.pressed.connect(_change_store_staff.bind(1))
+	drawer_content.add_child(add_staff)
+
+	var restock_btn := _button("Restock ($240)", Vector2(236, 212), Vector2(110, 36))
+	restock_btn.pressed.connect(_restock_store)
+	drawer_content.add_child(restock_btn)
+
+	# Stock Progress Bar
+	var stock_bar := ProgressBar.new()
+	stock_bar.position = Vector2(0, 258)
+	stock_bar.size = Vector2(346, 10)
+	stock_bar.show_percentage = false
+	stock_bar.value = float(s.get("stock", 100.0))
+	drawer_content.add_child(stock_bar)
+
+	# Local Marketing Campaign
+	var promo_sec: float = float(s.get("promotion", 0.0))
+	var camp_text := "Campaign active (%ds)" % roundi(promo_sec) if promo_sec > 0.0 else "Launch local ad campaign · $450"
+	var camp_btn := _button(camp_text, Vector2(0, 280), Vector2(346, 38))
+	camp_btn.pressed.connect(_launch_store_promotion)
+	drawer_content.add_child(camp_btn)
+
+	# Storefront Facade Concept
+	var facade_title := _label("STOREFRONT FACADE CONCEPT", 10, Color("#94a3b8"))
+	facade_title.position = Vector2(0, 330)
+	drawer_content.add_child(facade_title)
+
+	var cur_f: String = str(s.get("facade", "Gallery"))
+	for i in 3:
+		var f_name: String = ["Gallery", "Warm", "Neon"][i]
+		var btn := _button(f_name, Vector2(i * 118, 350), Vector2(110, 36))
+		if f_name == cur_f:
+			btn.modulate = Color("#38bdf8")
+		btn.pressed.connect(_set_store_facade.bind(f_name))
+		drawer_content.add_child(btn)
+
+	# Replace / Lease Button
+	var re_lease_btn := _button("📋 Browse Catalog To Re-Lease", Vector2(0, 404), Vector2(346, 38))
+	re_lease_btn.pressed.connect(_open_drawer.bind("directory"))
+	drawer_content.add_child(re_lease_btn)
+
+func _render_directory_drawer() -> void:
+	var cat_scroll := HBoxContainer.new()
+	cat_scroll.position = Vector2(0, 0)
+	cat_scroll.size = Vector2(346, 32)
+	drawer_content.add_child(cat_scroll)
+
+	var cats := ["All", "Luxury", "Food", "Fashion", "Entertainment", "Specialty"]
+	for c in cats:
+		var btn := _button(c, Vector2.ZERO, Vector2(54, 30))
+		if c == selected_directory_cat: btn.modulate = Color("#38bdf8")
+		btn.pressed.connect(_set_directory_category.bind(c))
+		cat_scroll.add_child(btn)
+
+	var list_scroll := ScrollContainer.new()
+	list_scroll.position = Vector2(0, 42)
+	list_scroll.size = Vector2(346, 426)
+	drawer_content.add_child(list_scroll)
+
+	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 8)
+	list_scroll.add_child(vbox)
+
+	for t in tenants_catalog:
+		var t_cat: String = str(t.get("category", ""))
+		if selected_directory_cat != "All" and t_cat != selected_directory_cat:
+			continue
+
+		var card := _panel(Vector2.ZERO, Vector2(330, 84), Color(0.06, 0.09, 0.15, 0.9))
+		card.custom_minimum_size = Vector2(330, 84)
+		vbox.add_child(card)
+
+		var t_title := _label("%s %s" % [t.icon, t.name], 12, Color("#ffffff"), true)
+		t_title.position = Vector2(10, 8)
+		card.add_child(t_title)
+
+		var t_desc := _label("$%s · Draw +%d · %s" % [_comma(int(t.cost)), int(t.draw), t.category], 10, Color("#38bdf8"))
+		t_desc.position = Vector2(10, 28)
+		card.add_child(t_desc)
+
+		var t_sig := _label(str(t.get("signature_item", "")), 9, Color("#94a3b8"))
+		t_sig.position = Vector2(10, 48)
+		t_sig.size = Vector2(210, 28)
+		t_sig.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card.add_child(t_sig)
+
+		var lease_btn := _button("LEASE", Vector2(236, 22), Vector2(84, 40))
+		lease_btn.pressed.connect(_lease_tenant_into_store.bind(t))
+		card.add_child(lease_btn)
+
+func _set_directory_category(c: String) -> void:
+	selected_directory_cat = c
+	_render_drawer_content()
+
+func _render_architect_drawer() -> void:
+	var info_lbl := _label("Select an amenity to place on the concourse:", 11, Color("#cbd5e1"))
+	info_lbl.position = Vector2(0, 0)
+	drawer_content.add_child(info_lbl)
+
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(0, 26)
+	scroll.size = Vector2(346, 442)
+	drawer_content.add_child(scroll)
+
+	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 8)
+	scroll.add_child(vbox)
+
+	for a in amenities_catalog:
+		var card := _panel(Vector2.ZERO, Vector2(330, 72), Color(0.06, 0.09, 0.15, 0.9))
+		card.custom_minimum_size = Vector2(330, 72)
+		vbox.add_child(card)
+
+		var a_title := _label("%s %s" % [a.icon, a.name], 12, Color("#ffffff"), true)
+		a_title.position = Vector2(10, 8)
+		card.add_child(a_title)
+
+		var a_cost := _label("$%d · %s" % [int(a.cost), a.effect], 10, Color("#34d399"))
+		a_cost.position = Vector2(10, 28)
+		a_cost.size = Vector2(210, 36)
+		a_cost.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card.add_child(a_cost)
+
+		var place_btn := _button("PLACE", Vector2(236, 16), Vector2(84, 38))
+		place_btn.pressed.connect(_select_amenity_for_placement.bind(str(a.type), str(a.name)))
+		card.add_child(place_btn)
+
+func _select_amenity_for_placement(amen_type: String, amen_name: String) -> void:
+	selected_place_amenity = amen_type
+	_add_event("Amenity Placement Active", "Click on any concourse tile to construct %s." % amen_name, "info")
+	sound_mgr.play_click()
+
+func _render_ops_drawer() -> void:
+	var clean_card := _panel(Vector2(0, 0), Vector2(346, 84), Color(0.06, 0.09, 0.15, 0.9))
+	drawer_content.add_child(clean_card)
+	var c_lbl := _label("SANITATION & FLOOR BUFFING", 12, Color("#38bdf8"), true)
+	c_lbl.position = Vector2(12, 10)
+	clean_card.add_child(c_lbl)
+	var c_sub := _label("Buff concourses to sparkling shine (+25% Cln)", 10, Color("#94a3b8"))
+	c_sub.position = Vector2(12, 32)
+	clean_card.add_child(c_sub)
+	var c_btn := _button("Dispatch ($250)", Vector2(12, 48), Vector2(322, 28))
+	c_btn.pressed.connect(_perform_mall_action.bind("clean"))
+	clean_card.add_child(c_btn)
+
+	var sec_card := _panel(Vector2(0, 96), Vector2(346, 84), Color(0.06, 0.09, 0.15, 0.9))
+	drawer_content.add_child(sec_card)
+	var s_lbl := _label("CONCOURSE SECURITY PATROLS", 12, Color("#38bdf8"), true)
+	s_lbl.position = Vector2(12, 10)
+	sec_card.add_child(s_lbl)
+	var s_sub := _label("Reinforce guard presence (+20% Security)", 10, Color("#94a3b8"))
+	s_sub.position = Vector2(12, 32)
+	sec_card.add_child(s_sub)
+	var s_btn := _button("Deploy ($350)", Vector2(12, 48), Vector2(322, 28))
+	s_btn.pressed.connect(_perform_mall_action.bind("security"))
+	sec_card.add_child(s_btn)
+
+	var ad_card := _panel(Vector2(0, 192), Vector2(346, 84), Color(0.06, 0.09, 0.15, 0.9))
+	drawer_content.add_child(ad_card)
+	var a_lbl := _label("REGIONAL ADVERTISING BLITZ", 12, Color("#38bdf8"), true)
+	a_lbl.position = Vector2(12, 10)
+	ad_card.add_child(a_lbl)
+	var a_sub := _label("Mall billboard blitz (+8 Rep & Guest Surge)", 10, Color("#94a3b8"))
+	a_sub.position = Vector2(12, 32)
+	ad_card.add_child(a_sub)
+	var a_btn := _button("Launch ($600)", Vector2(12, 48), Vector2(322, 28))
+	a_btn.pressed.connect(_perform_mall_action.bind("campaign"))
+	ad_card.add_child(a_btn)
+
+	# Demographics breakdown
+	var demo_lbl := _label("SHOPPER DEMOGRAPHICS & ELASTICITY", 11, Color("#cbd5e1"), true)
+	demo_lbl.position = Vector2(0, 290)
+	drawer_content.add_child(demo_lbl)
+
+	var demo_desc := _label("💎 VIPs (15%): Demand >80% Cln & Premium\n🏷️ Bargain (30%): Demand Value pricing\n📱 Trendsetters (20%): Love Neon & Tech\n🍽️ Foodies (25%): Need Dining & Restrooms\n☕ Strollers (10%): Window-shop & Fountain", 10, Color("#94a3b8"))
+	demo_desc.position = Vector2(0, 312)
+	demo_desc.size = Vector2(346, 120)
+	drawer_content.add_child(demo_desc)
+
+func _render_feed_drawer() -> void:
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(0, 0)
+	scroll.size = Vector2(346, 470)
+	drawer_content.add_child(scroll)
+
+	var vbox := VBoxContainer.new()
+	vbox.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vbox.add_theme_constant_override("separation", 6)
+	scroll.add_child(vbox)
+
+	for ev in event_feed:
+		var panel := _panel(Vector2.ZERO, Vector2(330, 52), Color(0.06, 0.09, 0.15, 0.9))
+		panel.custom_minimum_size = Vector2(330, 52)
+		vbox.add_child(panel)
+
+		var ev_t := _label(str(ev.title), 11, Color("#38bdf8"), true)
+		ev_t.position = Vector2(10, 6)
+		panel.add_child(ev_t)
+
+		var ev_d := _label(str(ev.desc), 9, Color("#cbd5e1"))
+		ev_d.position = Vector2(10, 24)
+		ev_d.size = Vector2(310, 24)
+		ev_d.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		panel.add_child(ev_d)
+
+func _add_event(title: String, desc: String, ev_type := "info") -> void:
+	var ev := {"title": title, "desc": desc, "type": ev_type, "time": "W%d·D%d" % [week, day]}
+	event_feed.push_front(ev)
+	if event_feed.size() > 40: event_feed.pop_back()
+
+	if toast_container != null:
+		var toast := _panel(Vector2.ZERO, Vector2(340, 48), Color(0.05, 0.08, 0.14, 0.94))
+		toast.custom_minimum_size = Vector2(340, 48)
+		toast_container.add_child(toast)
+
+		var t_title := _label(title, 11, Color("#38bdf8"), true)
+		t_title.position = Vector2(10, 6)
+		toast.add_child(t_title)
+
+		var t_desc := _label(desc, 9, Color("#e2e8f0"))
+		t_desc.position = Vector2(10, 24)
+		t_desc.size = Vector2(320, 20)
+		toast.add_child(t_desc)
+
+		var tween := create_tween()
+		tween.tween_interval(3.5)
+		tween.tween_property(toast, "modulate:a", 0.0, 0.8)
+		tween.tween_callback(toast.queue_free)
+
+func _refresh_stats_hud() -> void:
+	if cash_label == null: return
+	cash_label.text = "$%s" % _comma(cash)
+	date_label.text = "W%d · D%d" % [week, day]
+	guests_label.text = "%d GUESTS" % active_shoppers
+	rep_label.text = "%d%% REP" % reputation
+	clean_label.text = "%d%% CLN" % cleanliness
 
 func _refresh_ui() -> void:
-	if cash_label == null: return
-	var store := stores[selected_store]
-	cash_label.text = "$%s" % _comma(cash)
-	visitor_label.text = "%d VISITORS" % active_shoppers
-	flow_label.text = "WEST GALLERY\n%d entered  ·  %d exited\n\nEAST GALLERY\n%d entered  ·  %d exited" % [entrances.west.entered, entrances.west.exited, entrances.east.entered, entrances.east.exited]
-	store_title.text = "%s  ·  %s" % [store.name, store.category]
-	store_detail.text = "%s pricing  ·  %d staff\n%d%% satisfaction  ·  %s facade" % [store.price, store.staff, store.satisfaction, store.facade]
-	stock_bar.value = store.stock
-	campaign_button.text = "Campaign live · high demand" if store.promotion > 0.0 else "Launch local campaign · $450"
-	for index in store_buttons.get_child_count():
-		var button := store_buttons.get_child(index) as Button
-		button.modulate = Color.WHITE if index == selected_store else Color(0.68, 0.72, 0.8)
+	_refresh_stats_hud()
+	_render_drawer_content()
 
-func _set_simulation_speed(speed: float) -> void:
+func _set_sim_speed(speed: float) -> void:
 	Engine.time_scale = speed
 	speed_label.text = "PAUSED" if speed == 0.0 else "%d×" % roundi(speed)
-	speed_label.modulate = Color("#fbbf24") if speed == 0.0 else Color("#cbd5e1")
+	speed_label.modulate = Color("#fbbf24") if speed == 0.0 else Color("#38bdf8")
+	sound_mgr.play_click()
 
+func _toggle_sound() -> void:
+	var enabled: bool = sound_mgr.toggle_sound()
+	sound_btn.text = "🔊 SOUND" if enabled else "🔇 MUTED"
+	sound_btn.modulate = Color.WHITE if enabled else Color("#94a3b8")
+
+# ==============================================================================
+# SAVE / LOAD SYSTEM
+# ==============================================================================
 func _save_game() -> void:
 	var store_state: Array[Dictionary] = []
-	for store in stores:
+	for s in stores:
 		store_state.append({
-			"price": store.price, "staff": store.staff, "stock": store.stock,
-			"satisfaction": store.satisfaction, "promotion": store.promotion, "facade": store.facade
+			"name": s.name, "category": s.category, "price": s.price,
+			"staff": s.staff, "stock": s.stock, "satisfaction": s.satisfaction,
+			"level": s.level, "revenue": s.revenue, "served": s.served,
+			"facade": s.facade, "tenant_id": s.tenant_id
 		})
-	var payload := {"version": 1, "cash": cash, "selected_store": selected_store, "stores": store_state}
+
+	var payload := {
+		"version": 1,
+		"cash": cash,
+		"week": week,
+		"day": day,
+		"reputation": reputation,
+		"cleanliness": cleanliness,
+		"security": security,
+		"selected_store_idx": selected_store_idx,
+		"stores": store_state,
+		"amenities": placed_amenities
+	}
+
 	var file := FileAccess.open("user://aurora_save.json", FileAccess.WRITE)
 	if file != null:
 		file.store_string(JSON.stringify(payload))
+		_add_event("Game Saved", "Mall state saved successfully on device.", "success")
+		sound_mgr.play_place()
 
 func _load_game() -> void:
 	if not FileAccess.file_exists("user://aurora_save.json"): return
@@ -450,102 +1525,61 @@ func _load_game() -> void:
 	if file == null: return
 	var payload = JSON.parse_string(file.get_as_text())
 	if not payload is Dictionary or int(payload.get("version", 0)) != 1: return
+
 	cash = int(payload.get("cash", cash))
-	selected_store = clampi(int(payload.get("selected_store", 0)), 0, stores.size() - 1)
+	week = int(payload.get("week", week))
+	day = int(payload.get("day", day))
+	reputation = int(payload.get("reputation", reputation))
+	cleanliness = int(payload.get("cleanliness", cleanliness))
+	security = int(payload.get("security", security))
+	selected_store_idx = clampi(int(payload.get("selected_store_idx", 0)), 0, stores.size() - 1)
+
 	var saved_stores: Array = payload.get("stores", [])
-	for index in mini(stores.size(), saved_stores.size()):
-		var saved: Dictionary = saved_stores[index]
-		stores[index].price = str(saved.get("price", "Market"))
-		stores[index].staff = int(saved.get("staff", 3))
-		stores[index].stock = float(saved.get("stock", 100.0))
-		stores[index].satisfaction = int(saved.get("satisfaction", 92))
-		stores[index].promotion = float(saved.get("promotion", 0.0))
-		stores[index].facade = str(saved.get("facade", "Gallery"))
+	for i in mini(stores.size(), saved_stores.size()):
+		var saved: Dictionary = saved_stores[i]
+		stores[i].name = str(saved.get("name", stores[i].name))
+		stores[i].category = str(saved.get("category", stores[i].category))
+		stores[i].price = str(saved.get("price", "Market"))
+		stores[i].staff = int(saved.get("staff", 2))
+		stores[i].stock = float(saved.get("stock", 100.0))
+		stores[i].satisfaction = int(saved.get("satisfaction", 95))
+		stores[i].level = int(saved.get("level", 1))
+		stores[i].revenue = int(saved.get("revenue", 0))
+		stores[i].served = int(saved.get("served", 0))
+		stores[i].facade = str(saved.get("facade", "Gallery"))
+		stores[i].tenant_id = str(saved.get("tenant_id", "generic"))
 
-func _panel(at: Vector2, panel_size: Vector2, color: Color) -> Panel:
-	var panel := Panel.new()
-	panel.position = at
-	panel.size = panel_size
-	var style := StyleBoxFlat.new()
-	style.bg_color = color
-	style.border_color = Color(0.19, 0.3, 0.42, 0.72)
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(16)
-	style.shadow_color = Color(0, 0, 0, 0.35)
-	style.shadow_size = 12
-	panel.add_theme_stylebox_override("panel", style)
-	return panel
+# ==============================================================================
+# HELPERS & CATALOG LOADERS
+# ==============================================================================
+func _load_catalogs() -> void:
+	catalog_data = _load_json("res://data/catalogs.json")
+	tenants_catalog = catalog_data.get("tenants", [])
+	amenities_catalog = catalog_data.get("amenities", [])
 
-func _label(text_value: String, size: int, color: Color) -> Label:
-	var label := Label.new()
-	label.text = text_value
-	label.add_theme_font_size_override("font_size", size)
-	label.add_theme_color_override("font_color", color)
-	return label
+func _find_tenant_by_category(cat: String) -> Dictionary:
+	for t in tenants_catalog:
+		if str(t.get("category", "")) == cat:
+			return t
+	return tenants_catalog[0] if tenants_catalog.size() > 0 else {}
 
-func _button(text_value: String, at: Vector2, button_size: Vector2) -> Button:
-	var button := Button.new()
-	button.text = text_value
-	button.position = at
-	button.custom_minimum_size = button_size
-	button.size = button_size
-	button.add_theme_font_size_override("font_size", 11)
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color("#13243a")
-	style.border_color = Color("#24435f")
-	style.set_border_width_all(1)
-	style.set_corner_radius_all(10)
-	button.add_theme_stylebox_override("normal", style)
-	var hover := style.duplicate()
-	hover.bg_color = Color("#155e75")
-	button.add_theme_stylebox_override("hover", hover)
-	return button
+func _find_tenant_by_id(t_id: String) -> Dictionary:
+	for t in tenants_catalog:
+		if str(t.get("id", "")) == t_id:
+			return t
+	return {}
 
-func _box(name_value: String, at: Vector3, size: Vector3, color: Color, metallic: float, roughness: float, parent: Node = self, transparent := false) -> MeshInstance3D:
-	var node := MeshInstance3D.new()
-	node.name = name_value
-	var mesh := BoxMesh.new()
-	mesh.size = size
-	node.mesh = mesh
-	node.position = at
-	node.material_override = _material(color, metallic, roughness, transparent)
-	parent.add_child(node)
-	return node
+func _find_amenity_by_type(a_type: String) -> Dictionary:
+	for a in amenities_catalog:
+		if str(a.get("type", "")) == a_type:
+			return a
+	return {}
 
-func _cylinder(name_value: String, at: Vector3, radius: float, height: float, color: Color, metallic: float, roughness: float, parent: Node = self) -> MeshInstance3D:
-	var node := MeshInstance3D.new()
-	node.name = name_value
-	var mesh := CylinderMesh.new()
-	mesh.top_radius = radius
-	mesh.bottom_radius = radius
-	mesh.height = height
-	node.mesh = mesh
-	node.position = at
-	node.material_override = _material(color, metallic, roughness)
-	parent.add_child(node)
-	return node
-
-func _sphere(name_value: String, at: Vector3, radius: float, color: Color, metallic: float, roughness: float) -> MeshInstance3D:
-	var node := MeshInstance3D.new()
-	node.name = name_value
-	var mesh := SphereMesh.new()
-	mesh.radius = radius
-	mesh.height = radius * 2.0
-	node.mesh = mesh
-	node.position = at
-	node.material_override = _material(color, metallic, roughness)
-	add_child(node)
-	return node
-
-func _material(color: Color, metallic: float, roughness: float, transparent := false) -> StandardMaterial3D:
-	var material := StandardMaterial3D.new()
-	material.albedo_color = color
-	material.metallic = metallic
-	material.roughness = roughness
-	if transparent:
-		material.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
-		material.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
-	return material
+func _load_json(path: String) -> Dictionary:
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null: return {}
+	var parsed = JSON.parse_string(file.get_as_text())
+	return parsed if parsed is Dictionary else {}
 
 func _comma(value: int) -> String:
 	var raw := str(value)
@@ -555,13 +1589,87 @@ func _comma(value: int) -> String:
 		raw = raw.left(raw.length() - 3)
 	return raw + result
 
-func _load_blueprint(path: String) -> Dictionary:
-	var file := FileAccess.open(path, FileAccess.READ)
-	if file == null:
-		push_error("Mall blueprint missing: %s" % path)
-		return {}
-	var parsed = JSON.parse_string(file.get_as_text())
-	if not parsed is Dictionary:
-		push_error("Mall blueprint is invalid JSON: %s" % path)
-		return {}
-	return parsed
+func _panel(at: Vector2, panel_size: Vector2, color: Color) -> Panel:
+	var panel := Panel.new()
+	panel.position = at
+	panel.size = panel_size
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.border_color = Color(0.2, 0.35, 0.5, 0.6)
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(14)
+	style.shadow_color = Color(0, 0, 0, 0.4)
+	style.shadow_size = 10
+	panel.add_theme_stylebox_override("panel", style)
+	return panel
+
+func _label(text_val: String, font_size: int, color: Color, bold := false) -> Label:
+	var label := Label.new()
+	label.text = text_val
+	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", color)
+	return label
+
+func _button(text_val: String, at: Vector2, btn_size: Vector2) -> Button:
+	var btn := Button.new()
+	btn.text = text_val
+	btn.position = at
+	btn.custom_minimum_size = btn_size
+	btn.size = btn_size
+	btn.add_theme_font_size_override("font_size", 11)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color("#111c2e")
+	style.border_color = Color("#1e3a5f")
+	style.set_border_width_all(1)
+	style.set_corner_radius_all(10)
+	btn.add_theme_stylebox_override("normal", style)
+	var hover := style.duplicate()
+	hover.bg_color = Color("#1d4ed8")
+	btn.add_theme_stylebox_override("hover", hover)
+	return btn
+
+func _box(name_val: String, at: Vector3, size_val: Vector3, color: Color, metallic: float, roughness: float, parent: Node = self, transparent := false) -> MeshInstance3D:
+	var node := MeshInstance3D.new()
+	node.name = name_val
+	var mesh := BoxMesh.new()
+	mesh.size = size_val
+	node.mesh = mesh
+	node.position = at
+	node.material_override = _material(color, metallic, roughness, transparent)
+	parent.add_child(node)
+	return node
+
+func _cylinder(name_val: String, at: Vector3, radius: float, height: float, color: Color, metallic: float, roughness: float, parent: Node = self, transparent := false) -> MeshInstance3D:
+	var node := MeshInstance3D.new()
+	node.name = name_val
+	var mesh := CylinderMesh.new()
+	mesh.top_radius = radius
+	mesh.bottom_radius = radius
+	mesh.height = height
+	node.mesh = mesh
+	node.position = at
+	node.material_override = _material(color, metallic, roughness, transparent)
+	parent.add_child(node)
+	return node
+
+func _sphere(name_val: String, at: Vector3, radius: float, color: Color, metallic: float, roughness: float, parent: Node = self) -> MeshInstance3D:
+	var node := MeshInstance3D.new()
+	node.name = name_val
+	var mesh := SphereMesh.new()
+	mesh.radius = radius
+	mesh.height = radius * 2.0
+	node.mesh = mesh
+	node.position = at
+	node.material_override = _material(color, metallic, roughness)
+	parent.add_child(node)
+	return node
+
+func _material(color: Color, metallic: float, roughness: float, transparent := false) -> StandardMaterial3D:
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = color
+	mat.metallic = metallic
+	mat.roughness = roughness
+	if transparent:
+		mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+		mat.shading_mode = BaseMaterial3D.SHADING_MODE_PER_PIXEL
+	return mat

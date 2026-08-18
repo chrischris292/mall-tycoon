@@ -19,6 +19,11 @@ ambient_light_color = Color(0.72, 0.8, 0.9, 1)
 ambient_light_energy = 0.62
 reflected_light_source = 2
 tonemap_mode = 2
+glow_enabled = true
+glow_intensity = 0.6
+glow_bloom = 0.22
+glow_blend_mode = 0
+
 
 [node name="AuroraMall" type="Node3D"]
 script = ExtResource("1_main")

@@ -1,21 +1,406 @@
 {
   "id": "aurora_grand",
-  "name": "Aurora Grand",
-  "starting_cash": 28000,
+  "name": "Aurora Grand Flagship",
+  "starting_cash": 42000,
   "corridors": [
-    { "id": "main_gallery", "center": [0, 0], "size": [48, 7.2], "material": "terrazzo" },
-    { "id": "center_court", "center": [0, 0], "size": [12, 12], "material": "atrium" }
+    {
+      "id": "east_gallery",
+      "center": [
+        20,
+        0
+      ],
+      "size": [
+        30,
+        8.0
+      ],
+      "axis": "x",
+      "material": "terrazzo"
+    },
+    {
+      "id": "west_gallery",
+      "center": [
+        -20,
+        0
+      ],
+      "size": [
+        30,
+        8.0
+      ],
+      "axis": "x",
+      "material": "terrazzo"
+    },
+    {
+      "id": "north_gallery",
+      "center": [
+        0,
+        -20
+      ],
+      "size": [
+        8.0,
+        30
+      ],
+      "axis": "z",
+      "material": "terrazzo"
+    },
+    {
+      "id": "south_gallery",
+      "center": [
+        0,
+        20
+      ],
+      "size": [
+        8.0,
+        30
+      ],
+      "axis": "z",
+      "material": "terrazzo"
+    },
+    {
+      "id": "center_rotunda",
+      "center": [
+        0,
+        0
+      ],
+      "size": [
+        18,
+        18
+      ],
+      "axis": "c",
+      "material": "atrium"
+    }
   ],
   "entrances": [
-    { "id": "west", "name": "West Gallery", "position": [-25.5, 0], "facing": 90 },
-    { "id": "east", "name": "East Gallery", "position": [25.5, 0], "facing": -90 }
+    {
+      "id": "east",
+      "name": "East Atrium Portal",
+      "position": [
+        38.0,
+        0.0
+      ],
+      "facing": -90
+    },
+    {
+      "id": "west",
+      "name": "West Atrium Portal",
+      "position": [
+        -38.0,
+        0.0
+      ],
+      "facing": 90
+    },
+    {
+      "id": "north",
+      "name": "North Atrium Portal",
+      "position": [
+        0.0,
+        -38.0
+      ],
+      "facing": 180
+    },
+    {
+      "id": "south",
+      "name": "South Atrium Portal",
+      "position": [
+        0.0,
+        38.0
+      ],
+      "facing": 0
+    }
   ],
   "stores": [
-    { "name": "LUMINA", "category": "Fashion", "position": [-17, -7] },
-    { "name": "JUNIPER", "category": "Cafe", "position": [-8, -7] },
-    { "name": "QUANTUM", "category": "Technology", "position": [8, -7] },
-    { "name": "KINETIC", "category": "Entertainment", "position": [17, -7] },
-    { "name": "MAISON", "category": "Luxury", "position": [-13, 7] },
-    { "name": "MARKET HALL", "category": "Dining", "position": [13, 7] }
+    {
+      "name": "Starlight IMAX Cinema",
+      "category": "Entertainment",
+      "lot_type": "mega_anchor",
+      "size": [
+        13.5,
+        9.0
+      ],
+      "position": [
+        34.0,
+        0.0
+      ],
+      "facing": "east"
+    },
+    {
+      "name": "Horizon Quantum Tech",
+      "category": "Technology",
+      "lot_type": "flagship",
+      "size": [
+        8.5,
+        6.5
+      ],
+      "position": [
+        22.5,
+        -5.5
+      ],
+      "facing": "north"
+    },
+    {
+      "name": "Volta EV Experience",
+      "category": "Specialty",
+      "lot_type": "standard",
+      "size": [
+        7.5,
+        6.0
+      ],
+      "position": [
+        22.5,
+        5.5
+      ],
+      "facing": "south"
+    },
+    {
+      "name": "Circuit Labs",
+      "category": "Technology",
+      "lot_type": "boutique",
+      "size": [
+        5.2,
+        5.0
+      ],
+      "position": [
+        10.5,
+        -5.0
+      ],
+      "facing": "north"
+    },
+    {
+      "name": "Grand Metropolitan",
+      "category": "Specialty",
+      "lot_type": "mega_anchor",
+      "size": [
+        13.0,
+        8.5
+      ],
+      "position": [
+        -34.0,
+        0.0
+      ],
+      "facing": "west"
+    },
+    {
+      "name": "Maison De Etoile",
+      "category": "Luxury",
+      "lot_type": "flagship",
+      "size": [
+        8.5,
+        6.5
+      ],
+      "position": [
+        -22.5,
+        -5.5
+      ],
+      "facing": "north"
+    },
+    {
+      "name": "Paragon Sports",
+      "category": "Fashion",
+      "lot_type": "standard",
+      "size": [
+        7.5,
+        6.0
+      ],
+      "position": [
+        -22.5,
+        5.5
+      ],
+      "facing": "south"
+    },
+    {
+      "name": "The Artisan Market",
+      "category": "Specialty",
+      "lot_type": "kiosk",
+      "size": [
+        5.2,
+        5.0
+      ],
+      "position": [
+        -10.5,
+        5.0
+      ],
+      "facing": "south"
+    },
+    {
+      "name": "House of Velvet",
+      "category": "Luxury",
+      "lot_type": "flagship",
+      "size": [
+        8.5,
+        6.5
+      ],
+      "position": [
+        -5.5,
+        -22.5
+      ],
+      "facing": "west"
+    },
+    {
+      "name": "Lumiere Beauty",
+      "category": "Fashion",
+      "lot_type": "standard",
+      "size": [
+        7.5,
+        6.0
+      ],
+      "position": [
+        5.5,
+        -22.5
+      ],
+      "facing": "east"
+    },
+    {
+      "name": "Aurelia Swiss Timepieces",
+      "category": "Luxury",
+      "lot_type": "boutique",
+      "size": [
+        5.4,
+        5.2
+      ],
+      "position": [
+        0.0,
+        -31.5
+      ],
+      "facing": "north"
+    },
+    {
+      "name": "Studio Ink",
+      "category": "Specialty",
+      "lot_type": "boutique",
+      "size": [
+        5.2,
+        5.0
+      ],
+      "position": [
+        -5.5,
+        -10.5
+      ],
+      "facing": "west"
+    },
+    {
+      "name": "Food Court Mega-Hall",
+      "category": "Food",
+      "lot_type": "mega_anchor",
+      "size": [
+        12.0,
+        9.0
+      ],
+      "position": [
+        0.0,
+        34.0
+      ],
+      "facing": "south"
+    },
+    {
+      "name": "Kyoto Craft Ramen",
+      "category": "Food",
+      "lot_type": "standard",
+      "size": [
+        7.5,
+        6.0
+      ],
+      "position": [
+        -5.5,
+        22.5
+      ],
+      "facing": "west"
+    },
+    {
+      "name": "Din Blossom",
+      "category": "Food",
+      "lot_type": "standard",
+      "size": [
+        7.5,
+        6.0
+      ],
+      "position": [
+        5.5,
+        22.5
+      ],
+      "facing": "east"
+    },
+    {
+      "name": "Matcha Bliss Boba",
+      "category": "Food",
+      "lot_type": "kiosk",
+      "size": [
+        5.2,
+        5.0
+      ],
+      "position": [
+        5.0,
+        10.5
+      ],
+      "facing": "east"
+    },
+    {
+      "name": "Green Grove Organic",
+      "category": "Fashion",
+      "lot_type": "boutique",
+      "size": [
+        5.4,
+        5.2
+      ],
+      "position": [
+        -5.0,
+        10.5
+      ],
+      "facing": "west"
+    },
+    {
+      "name": "Atlas Books and Coffee",
+      "category": "Food",
+      "lot_type": "standard",
+      "size": [
+        7.5,
+        6.0
+      ],
+      "position": [
+        10.5,
+        -10.5
+      ],
+      "facing": "east"
+    },
+    {
+      "name": "Serenity Spa",
+      "category": "Specialty",
+      "lot_type": "standard",
+      "size": [
+        7.5,
+        6.0
+      ],
+      "position": [
+        -10.5,
+        -10.5
+      ],
+      "facing": "west"
+    },
+    {
+      "name": "Zest Juice Bar",
+      "category": "Food",
+      "lot_type": "boutique",
+      "size": [
+        5.4,
+        5.2
+      ],
+      "position": [
+        10.5,
+        10.5
+      ],
+      "facing": "east"
+    },
+    {
+      "name": "The Armory Watches",
+      "category": "Luxury",
+      "lot_type": "boutique",
+      "size": [
+        5.4,
+        5.2
+      ],
+      "position": [
+        -10.5,
+        10.5
+      ],
+      "facing": "west"
+    }
   ]
 }
