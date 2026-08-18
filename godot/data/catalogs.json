@@ -1,0 +1,904 @@
+{
+  "version": 1,
+  "tenants": [
+    {
+      "id": "luxury_maison",
+      "name": "Maison De L'Étoile Haute Couture",
+      "category": "Luxury",
+      "icon": "✦",
+      "color": "#831843",
+      "cost": 3200,
+      "draw": 45,
+      "w": 2,
+      "h": 2,
+      "base_income": 140,
+      "item_description": "Two-story luxury fashion house with private champagne VIP salons, haute runway gowns, and bespoke leather atelier.",
+      "mechanic_type": "fashion_luxury",
+      "base_seating": 3,
+      "base_staff": 2,
+      "signature_item": "Parisian Silk Evening Gown & Diamond Clutch",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Private VIP Salon & Atelier",
+          "cost": 2400,
+          "seating_bonus": 4,
+          "staff_count": 3,
+          "revenue_multiplier": 1.6,
+          "draw_bonus": 18,
+          "features": ["Crystal Chandelier Runway", "Champagne Fitting Suite", "Personal Stylist Service"],
+          "signature_item": "Bespoke Velvet Tuxedo"
+        },
+        {
+          "tier": 3,
+          "name": "Flagship Luxury Palace",
+          "cost": 4900,
+          "seating_bonus": 6,
+          "staff_count": 4,
+          "revenue_multiplier": 2.45,
+          "draw_bonus": 32,
+          "features": ["Private Rooftop Fitting Lounge", "Gold Leaf Facade", "Exclusive Fashion Week Previews"],
+          "signature_item": "Limited Haute Couture Runway Masterpiece"
+        }
+      ]
+    },
+    {
+      "id": "swiss_watches",
+      "name": "Aurelia Swiss Timepieces & Diamonds",
+      "category": "Luxury",
+      "icon": "◈",
+      "color": "#b45309",
+      "cost": 3600,
+      "draw": 48,
+      "w": 2,
+      "h": 1,
+      "base_income": 160,
+      "item_description": "Swiss tourbillon chronometers, platinum jewelry vaults, and master horologist service counters.",
+      "mechanic_type": "fashion_luxury",
+      "base_seating": 2,
+      "base_staff": 2,
+      "signature_item": "Tourbillon Platinum Chronometer & Diamond Necklace",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Horology Vault & Lounge",
+          "cost": 2600,
+          "seating_bonus": 3,
+          "staff_count": 3,
+          "revenue_multiplier": 1.55,
+          "draw_bonus": 16,
+          "features": ["Anti-Reflective Vault Cases", "Master Watchmaker Workbench", "Cognac Tasting Lounge"],
+          "signature_item": "Skeletonized Rose Gold Watch"
+        },
+        {
+          "tier": 3,
+          "name": "Global Flagship Vault",
+          "cost": 5200,
+          "seating_bonus": 5,
+          "staff_count": 4,
+          "revenue_multiplier": 2.4,
+          "draw_bonus": 30,
+          "features": ["High-Jewelry Private Suite", "Rare Vintage Timepiece Archive", "Armored VIP Room"],
+          "signature_item": "One-of-a-Kind Perpetual Calendar Watch"
+        }
+      ]
+    },
+    {
+      "id": "leather_atelier",
+      "name": "Saddle & Stitch Parisian Leather",
+      "category": "Luxury",
+      "icon": "👜",
+      "color": "#78350f",
+      "cost": 2400,
+      "draw": 38,
+      "w": 1,
+      "h": 2,
+      "base_income": 110,
+      "item_description": "Handcrafted Italian full-grain leather bags, monogramming desks, and luxury travel luggage trunks.",
+      "mechanic_type": "fashion_luxury",
+      "base_seating": 2,
+      "base_staff": 1,
+      "signature_item": "Hand-Stitched Calfskin Birkin Tote",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Custom Monogram Atelier",
+          "cost": 1800,
+          "seating_bonus": 2,
+          "staff_count": 2,
+          "revenue_multiplier": 1.5,
+          "draw_bonus": 14,
+          "features": ["Live Gold-Foil Hot Stamping", "Exotic Skin Showcase", "Luggage Customizer Bar"],
+          "signature_item": "Personalized Leather Travel Trunk"
+        },
+        {
+          "tier": 3,
+          "name": "Maison Heritage Flagship",
+          "cost": 3800,
+          "seating_bonus": 4,
+          "staff_count": 3,
+          "revenue_multiplier": 2.3,
+          "draw_bonus": 26,
+          "features": ["Master Tanner Workbench Display", "Plush Leather Loungers", "Archival Showcase"],
+          "signature_item": "Limited Heritage Alligator Duffle"
+        }
+      ]
+    },
+    {
+      "id": "dumpling_house",
+      "name": "Din Blossom Dumpling House",
+      "category": "Food",
+      "icon": "🥟",
+      "color": "#be123c",
+      "cost": 2100,
+      "draw": 42,
+      "w": 2,
+      "h": 2,
+      "base_income": 115,
+      "item_description": "Glass-walled show kitchen with master dumpling chefs folding 18-fold Kurobuta pork Xiao Long Bao and spicy wontons.",
+      "mechanic_type": "dining_asian_dumpling",
+      "base_seating": 4,
+      "base_staff": 3,
+      "signature_item": "Truffle Kurobuta Xiao Long Bao & Sesame Noodles",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Imperial Dim Sum Parlor",
+          "cost": 1600,
+          "seating_bonus": 6,
+          "staff_count": 4,
+          "revenue_multiplier": 1.55,
+          "draw_bonus": 18,
+          "features": ["Glass Dumpling Theater Showcase", "Teakwood Dining Booths", "Steamer Cart Service"],
+          "signature_item": "Crab Roe & Black Truffle Soup Dumplings"
+        },
+        {
+          "tier": 3,
+          "name": "Michelin Star Dining Pavilion",
+          "cost": 3600,
+          "seating_bonus": 8,
+          "staff_count": 5,
+          "revenue_multiplier": 2.35,
+          "draw_bonus": 32,
+          "features": ["Private Emperor Tea Rooms", "Live Wok Stations", "Sommelier Tea Pairings"],
+          "signature_item": "Grand Golden Dumpling Feast"
+        }
+      ]
+    },
+    {
+      "id": "ramen_bar",
+      "name": "Kyoto Craft Ramen & Izakaya",
+      "category": "Food",
+      "icon": "🍜",
+      "color": "#c2410c",
+      "cost": 1650,
+      "draw": 36,
+      "w": 2,
+      "h": 1,
+      "base_income": 88,
+      "item_description": "24-hour simmered Tonkotsu broth, handmade springy noodles, sizzling gyoza, and counter bar seating.",
+      "mechanic_type": "dining_ramen",
+      "base_seating": 4,
+      "base_staff": 2,
+      "signature_item": "Black Garlic Tonkotsu & Sizzling Gyoza",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Artisan Noodle Lab",
+          "cost": 1250,
+          "seating_bonus": 4,
+          "staff_count": 3,
+          "revenue_multiplier": 1.5,
+          "draw_bonus": 14,
+          "features": ["Custom Broth Customization Cards", "Lantern Counter Lighting", "Rapid Noodle Cookers"],
+          "signature_item": "Spicy Red King Chashu Bowl"
+        },
+        {
+          "tier": 3,
+          "name": "Izakaya & Ramen Emporium",
+          "cost": 2800,
+          "seating_bonus": 6,
+          "staff_count": 4,
+          "revenue_multiplier": 2.3,
+          "draw_bonus": 28,
+          "features": ["Robata Yakitori Charcoal Grill", "Japanese Craft Beer Taps", "Tatami Dining Booths"],
+          "signature_item": "A5 Wagyu Tonkotsu & Sake Flight"
+        }
+      ]
+    },
+    {
+      "id": "trattoria",
+      "name": "Bella Vista Trattoria & Brick Oven",
+      "category": "Food",
+      "icon": "🍕",
+      "color": "#991b1b",
+      "cost": 1950,
+      "draw": 38,
+      "w": 2,
+      "h": 2,
+      "base_income": 105,
+      "item_description": "Woodfired brick oven pizza, handmade extruded pasta, cured charcuterie displays, and Chianti wine bar.",
+      "mechanic_type": "dining_restaurant",
+      "base_seating": 4,
+      "base_staff": 2,
+      "signature_item": "Woodfired Truffle Burrata Pizza & Chianti",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Ristorante con Enoteca",
+          "cost": 1500,
+          "seating_bonus": 4,
+          "staff_count": 3,
+          "revenue_multiplier": 1.5,
+          "draw_bonus": 15,
+          "features": ["Open Brick Oven Flame Display", "Oak Dining Booths", "Floor Waiter Service"],
+          "signature_item": "Tagliatelle al Tartufo Nero"
+        },
+        {
+          "tier": 3,
+          "name": "Grand Italian Market & Dining Hall",
+          "cost": 3400,
+          "seating_bonus": 8,
+          "staff_count": 5,
+          "revenue_multiplier": 2.35,
+          "draw_bonus": 30,
+          "features": ["Sommelier Cellar", "Live Gelato & Prosciutto Bar", "Tasting Menus"],
+          "signature_item": "Chef Truffle & Barolo Reserve Menu"
+        }
+      ]
+    },
+    {
+      "id": "boba_lounge",
+      "name": "Matcha Bliss & Boba Teahouse",
+      "category": "Food",
+      "icon": "🧋",
+      "color": "#4d7c0f",
+      "cost": 850,
+      "draw": 24,
+      "w": 1,
+      "h": 1,
+      "base_income": 48,
+      "item_description": "Ceremonial grade Kyoto matcha lattes, slow-cooked brown sugar boba pearls, and egg waffles.",
+      "mechanic_type": "dining_boba",
+      "base_seating": 3,
+      "base_staff": 2,
+      "signature_item": "Brown Sugar Tiger Milk & Matcha Soft Serve",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Artisan Boba & Dessert Bar",
+          "cost": 650,
+          "seating_bonus": 2,
+          "staff_count": 2,
+          "revenue_multiplier": 1.45,
+          "draw_bonus": 10,
+          "features": ["Ceremonial Whisking Station", "Boba Cooking Pots", "Neon Bubble Signage"],
+          "signature_item": "Taro Ube Swirl & Egg Puff"
+        },
+        {
+          "tier": 3,
+          "name": "Grand Kyoto Tea Pavilion",
+          "cost": 1450,
+          "seating_bonus": 4,
+          "staff_count": 3,
+          "revenue_multiplier": 2.2,
+          "draw_bonus": 20,
+          "features": ["Matcha Dessert Omakase", "Bamboo Zen Seating", "Live Crepe Station"],
+          "signature_item": "Matcha Parfait Tower & Gold Leaf Tea"
+        }
+      ]
+    },
+    {
+      "id": "smokehouse",
+      "name": "Prime Smokehouse & Craft Shakes",
+      "category": "Food",
+      "icon": "🍔",
+      "color": "#ea580c",
+      "cost": 1200,
+      "draw": 28,
+      "w": 2,
+      "h": 1,
+      "base_income": 68,
+      "item_description": "Wagyu smashburgers on potato brioche, seasoned waffle fries, and frozen custard shakes.",
+      "mechanic_type": "dining_cafe",
+      "base_seating": 3,
+      "base_staff": 2,
+      "signature_item": "Double Truffle Smash & Salted Caramel Shake",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Gourmet Smokehouse Grill",
+          "cost": 950,
+          "seating_bonus": 3,
+          "staff_count": 2,
+          "revenue_multiplier": 1.45,
+          "draw_bonus": 12,
+          "features": ["Smoked Brisket Toppings", "Self-Serve Sauce Bar", "Express Kitchen Line"],
+          "signature_item": "Smoked Gouda BBQ Bacon Burger"
+        },
+        {
+          "tier": 3,
+          "name": "Flagship Burger Lounge",
+          "cost": 2100,
+          "seating_bonus": 5,
+          "staff_count": 3,
+          "revenue_multiplier": 2.25,
+          "draw_bonus": 24,
+          "features": ["Craft Beer & Soda Wall", "Leather Diner Booths", "Flame Charred Grill"],
+          "signature_item": "Gold Leaf Wagyu & Bourbon Shake"
+        }
+      ]
+    },
+    {
+      "id": "cafe_roastery",
+      "name": "Juniper Artisan Coffee & Bakery",
+      "category": "Food",
+      "icon": "☕",
+      "color": "#854d0e",
+      "cost": 820,
+      "draw": 22,
+      "w": 1,
+      "h": 1,
+      "base_income": 45,
+      "item_description": "Single-origin espresso bar with live pastry oven timers, hot almond croissants, and cozy marble cafe tables.",
+      "mechanic_type": "dining_cafe",
+      "base_seating": 3,
+      "base_staff": 2,
+      "signature_item": "Vanilla Bean Flat White & Warm Croissant",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Artisan Roastery & Patisserie",
+          "cost": 650,
+          "seating_bonus": 2,
+          "staff_count": 2,
+          "revenue_multiplier": 1.45,
+          "draw_bonus": 10,
+          "features": ["Italian Lever Espresso Machine", "Marble Bistro Tables", "Live Croissant Proofer"],
+          "signature_item": "Signature Cold Foam Affogato"
+        },
+        {
+          "tier": 3,
+          "name": "Grand Reserve Roastery",
+          "cost": 1550,
+          "seating_bonus": 4,
+          "staff_count": 3,
+          "revenue_multiplier": 2.2,
+          "draw_bonus": 20,
+          "features": ["In-House Micro-Roaster", "Velvet Lounge Booths", "Pour-Over Tasting Bar"],
+          "signature_item": "Geisha Reserve Flight & French Macarons"
+        }
+      ]
+    },
+    {
+      "id": "cinema",
+      "name": "Starlight IMAX & Dolby Cinema",
+      "category": "Entertainment",
+      "icon": "🎬",
+      "color": "#0f172a",
+      "cost": 4500,
+      "draw": 60,
+      "w": 3,
+      "h": 2,
+      "base_income": 195,
+      "item_description": "Multi-screen theater with scheduled movie rotations, laser 4K projectors, VIP heated power recliners, and fresh butter popcorn concessions.",
+      "mechanic_type": "cinema_theater",
+      "base_seating": 4,
+      "base_staff": 3,
+      "signature_item": "IMAX VIP Recliner & Gourmet Popcorn Combo",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Dolby Laser 4DX Multiplex",
+          "cost": 3200,
+          "seating_bonus": 6,
+          "staff_count": 4,
+          "revenue_multiplier": 1.65,
+          "draw_bonus": 24,
+          "features": ["Floor-to-Ceiling Curved Screen", "Dolby Atmos 64-Channel Sound", "In-Seat Dining Call Buttons"],
+          "signature_item": "Premiere Night Red Carpet Pass"
+        },
+        {
+          "tier": 3,
+          "name": "Ultra-Luxe VIP Dine-In Cinema",
+          "cost": 6200,
+          "seating_bonus": 10,
+          "staff_count": 5,
+          "revenue_multiplier": 2.5,
+          "draw_bonus": 40,
+          "features": ["Private Director Balconies", "Laser 8K Dual Projectors", "Sommelier Wine & Truffle Service"],
+          "signature_item": "Private Director Screening Salon & Champagne"
+        }
+      ]
+    },
+    {
+      "id": "tech_apple",
+      "name": "Horizon Quantum Tech Flagship",
+      "category": "Specialty",
+      "icon": "◈",
+      "color": "#0284c7",
+      "cost": 3800,
+      "draw": 55,
+      "w": 3,
+      "h": 2,
+      "base_income": 180,
+      "item_description": "Monumental 2-story glass cube facade with live product keynote demonstrations, smart devices, and Genius support bar.",
+      "mechanic_type": "tech_demo",
+      "base_seating": 3,
+      "base_staff": 3,
+      "signature_item": "Quantum Pro Ultra Spatial Headset",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Genius Experience Center",
+          "cost": 2800,
+          "seating_bonus": 4,
+          "staff_count": 4,
+          "revenue_multiplier": 1.55,
+          "draw_bonus": 20,
+          "features": ["OLED Smart Table Displays", "VR Spatial Playground", "Hardware Genius Bar"],
+          "signature_item": "Neural Link Smart Glasses"
+        },
+        {
+          "tier": 3,
+          "name": "Mega Flagship Cyber Lab",
+          "cost": 5400,
+          "seating_bonus": 6,
+          "staff_count": 5,
+          "revenue_multiplier": 2.4,
+          "draw_bonus": 35,
+          "features": ["Hologram Demo Amphitheater", "Robotics AI Assistant Pods", "Express Drone Pickup"],
+          "signature_item": "Autonomous AI Companion Bot"
+        }
+      ]
+    },
+    {
+      "id": "arcade_bowlero",
+      "name": "Neon Horizon Retro Cyber Arcade",
+      "category": "Entertainment",
+      "icon": "◉",
+      "color": "#581c87",
+      "cost": 2600,
+      "draw": 38,
+      "w": 2,
+      "h": 2,
+      "base_income": 110,
+      "item_description": "Glowing neon arcade cabinets, air hockey, full-motion racing pods, and golden jackpot ticket dispensers.",
+      "mechanic_type": "arcade_gaming",
+      "base_seating": 3,
+      "base_staff": 2,
+      "signature_item": "1,000 Golden Ticket Jackpots",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Cyber Arcade & VR Arena",
+          "cost": 1800,
+          "seating_bonus": 4,
+          "staff_count": 3,
+          "revenue_multiplier": 1.5,
+          "draw_bonus": 16,
+          "features": ["Dual 4-Player Driving Sims", "Buzzer Prize Dispensers", "Retro Synth DJ Booth"],
+          "signature_item": "Giant Plush Crane Trophy"
+        },
+        {
+          "tier": 3,
+          "name": "Esports Stadium & Arena",
+          "cost": 3800,
+          "seating_bonus": 6,
+          "staff_count": 4,
+          "revenue_multiplier": 2.35,
+          "draw_bonus": 32,
+          "features": ["8-Pod LAN Tournament Arena", "Full-Motion Flight Simulator", "VIP Arcade Lounge"],
+          "signature_item": "Grand Championship Trophy"
+        }
+      ]
+    },
+    {
+      "id": "toy_wonderland",
+      "name": "Toy Box Wonderland & LEGO Lab",
+      "category": "Entertainment",
+      "icon": "★",
+      "color": "#be123c",
+      "cost": 1450,
+      "draw": 30,
+      "w": 2,
+      "h": 1,
+      "base_income": 75,
+      "item_description": "Interactive LEGO brick building tables, motorized train mountain, plush animal towers, and kids play zone.",
+      "mechanic_type": "toy_playlab",
+      "base_seating": 3,
+      "base_staff": 2,
+      "signature_item": "Giant 5,000-Piece Castle LEGO Set",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Interactive Workshop Lab",
+          "cost": 1100,
+          "seating_bonus": 3,
+          "staff_count": 2,
+          "revenue_multiplier": 1.45,
+          "draw_bonus": 14,
+          "features": ["Robotic Train Mountain", "Build-Your-Own Bot Station", "Toy Tester Floor Staff"],
+          "signature_item": "Programmable Quadcopter Kit"
+        },
+        {
+          "tier": 3,
+          "name": "Theme Park Toy Megastore",
+          "cost": 2400,
+          "seating_bonus": 5,
+          "staff_count": 3,
+          "revenue_multiplier": 2.25,
+          "draw_bonus": 28,
+          "features": ["Indoor Ferris Wheel Carousel", "Life-Size Animatronic Dragon", "Costume Mascot Visits"],
+          "signature_item": "Custom Motorized Mini-EV Car"
+        }
+      ]
+    },
+    {
+      "id": "fast_fashion",
+      "name": "Urban Thread Contemporary Apparel",
+      "category": "Fashion",
+      "icon": "👗",
+      "color": "#334155",
+      "cost": 1850,
+      "draw": 35,
+      "w": 2,
+      "h": 2,
+      "base_income": 95,
+      "item_description": "Runway trend apparel, denim walls, mirror fitting suites, and seasonal fashion collections.",
+      "mechanic_type": "fashion_boutique",
+      "base_seating": 3,
+      "base_staff": 2,
+      "signature_item": "Tailored Linen Blazer & Denim Set",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "High Fashion Concept Store",
+          "cost": 1400,
+          "seating_bonus": 3,
+          "staff_count": 3,
+          "revenue_multiplier": 1.45,
+          "draw_bonus": 14,
+          "features": ["Illuminated Runway Mannequins", "Smart Mirrored Dressing Suites", "Shoe Display Wall"],
+          "signature_item": "Designer Wool Trench Coat"
+        },
+        {
+          "tier": 3,
+          "name": "Flagship Megastore",
+          "cost": 3200,
+          "seating_bonus": 6,
+          "staff_count": 4,
+          "revenue_multiplier": 2.3,
+          "draw_bonus": 28,
+          "features": ["Self-Checkout Express Hub", "VIP Personal Styling Room", "DJ Sound Stage"],
+          "signature_item": "Limited Runway Capsule Collection"
+        }
+      ]
+    },
+    {
+      "id": "cosmetics_palace",
+      "name": "Velvet & Glow Cosmetics Palace",
+      "category": "Fashion",
+      "icon": "💄",
+      "color": "#db2777",
+      "cost": 1650,
+      "draw": 34,
+      "w": 2,
+      "h": 1,
+      "base_income": 85,
+      "item_description": "Illuminated vanity mirrors, luxury skincare bars, fragrance atomizer testing stations, and makeover chairs.",
+      "mechanic_type": "fashion_boutique",
+      "base_seating": 3,
+      "base_staff": 2,
+      "signature_item": "Rose Gold Hydration Serum & Luxury Palette",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Beauty Studio & Makeup Bar",
+          "cost": 1200,
+          "seating_bonus": 3,
+          "staff_count": 3,
+          "revenue_multiplier": 1.45,
+          "draw_bonus": 14,
+          "features": ["Ring Light Makeup Vanities", "Custom Foundation Scanner", "Perfume Bar"],
+          "signature_item": "Bespoke Custom Blend Lipstick"
+        },
+        {
+          "tier": 3,
+          "name": "Grand Haute Beauty Emporium",
+          "cost": 2700,
+          "seating_bonus": 5,
+          "staff_count": 4,
+          "revenue_multiplier": 2.25,
+          "draw_bonus": 26,
+          "features": ["Private Skincare Spa Cabin", "Virtual AR Mirror Try-Ons", "Fragrance Organ"],
+          "signature_item": "Gold Leaf Radiance Facial Collection"
+        }
+      ]
+    },
+    {
+      "id": "athletics_hub",
+      "name": "Apex Athletic Performance & Yoga",
+      "category": "Fashion",
+      "icon": "🏃",
+      "color": "#0369a1",
+      "cost": 1550,
+      "draw": 32,
+      "w": 2,
+      "h": 1,
+      "base_income": 80,
+      "item_description": "Premium moisture-wicking athleisure, compression gear, yoga accessories, and runner gait testing treadmill.",
+      "mechanic_type": "fashion_boutique",
+      "base_seating": 2,
+      "base_staff": 2,
+      "signature_item": "Butter-Soft Align Leggings & Performance Hoodie",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Athletic Studio & Fitting Lab",
+          "cost": 1150,
+          "seating_bonus": 3,
+          "staff_count": 2,
+          "revenue_multiplier": 1.45,
+          "draw_bonus": 12,
+          "features": ["3D Gait Analysis Treadmill", "Hydration Refill Station", "Stretch Studio Demo"],
+          "signature_item": "Carbon Fiber Running Shoe"
+        },
+        {
+          "tier": 3,
+          "name": "Flagship Sports Performance Pavilion",
+          "cost": 2600,
+          "seating_bonus": 5,
+          "staff_count": 4,
+          "revenue_multiplier": 2.25,
+          "draw_bonus": 26,
+          "features": ["Live In-Store Yoga Deck", "Cryo Recovery Demo Pod", "Community Run Club Hub"],
+          "signature_item": "Titanium Smart Fitness Tracker & Gear"
+        }
+      ]
+    },
+    {
+      "id": "dept_anchor",
+      "name": "Grand Metropolitan Department Store",
+      "category": "Specialty",
+      "icon": "🏬",
+      "color": "#1e293b",
+      "cost": 5800,
+      "draw": 75,
+      "w": 3,
+      "h": 2,
+      "base_income": 250,
+      "item_description": "Monumental 2-story department store anchor featuring designer cosmetics, luxury menswear, fine home goods, and concierge personal shoppers.",
+      "mechanic_type": "department_anchor",
+      "base_seating": 5,
+      "base_staff": 4,
+      "signature_item": "Designer Wardrobe Suite & Concierge Valet",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Luxury Premier Department Pavilion",
+          "cost": 4200,
+          "seating_bonus": 8,
+          "staff_count": 5,
+          "revenue_multiplier": 1.6,
+          "draw_bonus": 28,
+          "features": ["Bridal Registry Salon", "Fine Crystal & Tableware Floor", "Personal Shopper Suites"],
+          "signature_item": "Designer Platinum Wardrobe Collection"
+        },
+        {
+          "tier": 3,
+          "name": "Ultra-Luxe Grand Flagship Anchor",
+          "cost": 8500,
+          "seating_bonus": 12,
+          "staff_count": 7,
+          "revenue_multiplier": 2.45,
+          "draw_bonus": 48,
+          "features": ["Rooftop Champagne Terrace", "Private Vault Services", "Tailor & Alterations Atelier"],
+          "signature_item": "Grand VIP Concierge Lifetime Membership"
+        }
+      ]
+    },
+    {
+      "id": "book_nook",
+      "name": "The Book Nook & Literary Tea Lounge",
+      "category": "Specialty",
+      "icon": "▤",
+      "color": "#713f12",
+      "cost": 950,
+      "draw": 22,
+      "w": 1,
+      "h": 1,
+      "base_income": 50,
+      "item_description": "Floor-to-ceiling mahogany bookshelves, cozy leather reading armchairs, author signing circle, and herbal teas.",
+      "mechanic_type": "book_reading",
+      "base_seating": 2,
+      "base_staff": 1,
+      "signature_item": "First Edition Hardcover & Earl Grey",
+      "upgrades": [
+        {
+          "tier": 2,
+          "name": "Literary Salon & Café",
+          "cost": 720,
+          "seating_bonus": 2,
+          "staff_count": 2,
+          "revenue_multiplier": 1.4,
+          "draw_bonus": 10,
+          "features": ["Leather Armchairs", "Author Signing Desk", "Tea Infusion Bar"],
+          "signature_item": "Signed Collector Edition Book"
+        },
+        {
+          "tier": 3,
+          "name": "Grand Atrium Athenaeum",
+          "cost": 1650,
+          "seating_bonus": 4,
+          "staff_count": 3,
+          "revenue_multiplier": 2.15,
+          "draw_bonus": 22,
+          "features": ["Rolling Library Ladders", "Mezzanine Reading Gallery", "Private Book Clubs"],
+          "signature_item": "Rare Antiquarian Leather Manuscript"
+        }
+      ]
+    }
+  ],
+  "amenities": [
+    {
+      "type": "fountain_tier",
+      "name": "Tiered Dancing Fountain",
+      "category": "Decor",
+      "icon": "⛲",
+      "cost": 450,
+      "w": 2,
+      "h": 2,
+      "reputation_bonus": 8,
+      "cleanliness_bonus": 4,
+      "description": "Illuminated choreographed water fountain that creates a soothing atmosphere for resting shoppers.",
+      "effect": "+8 Mall Reputation & Shopper Happiness"
+    },
+    {
+      "type": "palm_planter",
+      "name": "Tropical Palm Planter",
+      "category": "Decor",
+      "icon": "🌴",
+      "cost": 180,
+      "w": 1,
+      "h": 1,
+      "reputation_bonus": 3,
+      "cleanliness_bonus": 3,
+      "description": "Lush indoor tropical palm in handcrafted stoneware planter. Beautifies concourse corridors.",
+      "effect": "+3 Aesthetics & Cleanliness rating"
+    },
+    {
+      "type": "rest_bench",
+      "name": "Teakwood Concourse Bench",
+      "category": "Comfort",
+      "icon": "🪑",
+      "cost": 220,
+      "w": 2,
+      "h": 1,
+      "reputation_bonus": 4,
+      "cleanliness_bonus": 0,
+      "description": "Ergonomic bench where tired shoppers can sit down to rest, extending their stay at the mall.",
+      "effect": "Provides rest seating for 2 shoppers"
+    },
+    {
+      "type": "atm_kiosk",
+      "name": "Premier Bank ATM Kiosk",
+      "category": "Utility",
+      "icon": "🏧",
+      "cost": 550,
+      "w": 1,
+      "h": 1,
+      "reputation_bonus": 5,
+      "cleanliness_bonus": 0,
+      "description": "Cash dispenser machine. Shoppers low on funds visit to withdraw more cash for shopping!",
+      "effect": "Replenishes shopper spending budgets"
+    },
+    {
+      "type": "coffee_cart",
+      "name": "Atrium Espresso Cart",
+      "category": "Dining",
+      "icon": "☕",
+      "cost": 750,
+      "w": 2,
+      "h": 1,
+      "reputation_bonus": 6,
+      "cleanliness_bonus": 0,
+      "description": "Artisan mobile espresso kiosk serving cortados, cold brews, and biscotti right in the concourse.",
+      "effect": "Generates passive concourse beverage sales"
+    },
+    {
+      "type": "boba_pop_up",
+      "name": "Boba Tea Pop-up Kiosk",
+      "category": "Dining",
+      "icon": "🧋",
+      "cost": 820,
+      "w": 2,
+      "h": 1,
+      "reputation_bonus": 7,
+      "cleanliness_bonus": 0,
+      "description": "High-draw pop-up station serving fresh tiger boba milk tea and fruit slushies.",
+      "effect": "Boosts foot traffic and generates passive cash"
+    },
+    {
+      "type": "bistro_dining_set",
+      "name": "Food Court Bistro Umbrella Set",
+      "category": "Dining",
+      "icon": "⛱️",
+      "cost": 320,
+      "w": 2,
+      "h": 2,
+      "reputation_bonus": 5,
+      "cleanliness_bonus": 0,
+      "description": "Communal dining table with 4 chairs and a vibrant canvas umbrella for food court snacking.",
+      "effect": "Adds 4 communal dining seats"
+    },
+    {
+      "type": "luxury_restroom",
+      "name": "Executive Restroom Pavilion",
+      "category": "Utility",
+      "icon": "🚻",
+      "cost": 650,
+      "w": 2,
+      "h": 2,
+      "reputation_bonus": 6,
+      "cleanliness_bonus": 6,
+      "description": "Marble-appointed luxury restrooms with touchless amenities and lounge vanity mirrors.",
+      "effect": "+6 Cleanliness & Shopper Satisfaction"
+    },
+    {
+      "type": "concierge_info",
+      "name": "Digital Directory & Concierge",
+      "category": "Utility",
+      "icon": "ℹ️",
+      "cost": 400,
+      "w": 1,
+      "h": 1,
+      "reputation_bonus": 5,
+      "cleanliness_bonus": 0,
+      "description": "Interactive touchscreen mall guide helping shoppers find their favorite boutiques and dining.",
+      "effect": "Speeds up shopper pathfinding and store discovery"
+    }
+  ],
+  "templates": [
+    {
+      "id": "showcase",
+      "name": "Aurora Grand",
+      "subtitle": "A fully operating flagship mall to explore",
+      "icon": "A",
+      "starting_cash": 28000,
+      "scale": "SHOWCASE"
+    },
+    {
+      "id": "small",
+      "name": "Cedar Grove",
+      "subtitle": "Intimate neighborhood mall with two anchors",
+      "icon": "S",
+      "starting_cash": 26000,
+      "scale": "SMALL"
+    },
+    {
+      "id": "medium",
+      "name": "Lakeside Galleria",
+      "subtitle": "Two courts, a loop concourse, and 18 spaces",
+      "icon": "M",
+      "starting_cash": 36000,
+      "scale": "MEDIUM"
+    },
+    {
+      "id": "large",
+      "name": "Metropolitan Centre",
+      "subtitle": "Four wings, four anchors, and expansion room",
+      "icon": "L",
+      "starting_cash": 52000,
+      "scale": "LARGE"
+    },
+    {
+      "id": "blank",
+      "name": "Empty Development Site",
+      "subtitle": "Build an original mall from the ground up",
+      "icon": "✦",
+      "starting_cash": 40000,
+      "scale": "CUSTOM"
+    }
+  ]
+}
