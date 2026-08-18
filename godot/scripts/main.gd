@@ -16,7 +16,7 @@ const STORE_COLORS := [
 ]
 const SAVE_PATH := "user://aurora_save.json"
 const SAVE_SLOT_PREFIX := "user://aurora_save_slot_"
-const STARTER_OPEN_STORES := [0, 1, 5, 6, 12, 13]
+const STARTER_OPEN_STORES := [0, 1, 4, 6]
 
 # Mall State Variables
 var cash := 28000
@@ -34,6 +34,8 @@ var selected_store_idx := 0
 var current_drawer := "inspector" # "inspector", "directory", "architect", "ops", "data", "goals", "feed"
 var selected_directory_cat := "All"
 var selected_place_amenity := ""
+var selected_build_tool := ""
+var pending_build_command: Dictionary = {}
 
 # Data Catalogs & Blueprint
 var catalog_data: Dictionary = {}
@@ -44,6 +46,9 @@ var blueprint: Dictionary = {}
 
 var stores: Array[Dictionary] = []
 var placed_amenities: Array[Dictionary] = []
+var custom_corridors: Array[Dictionary] = []
+var build_commands: Array[Dictionary] = []
+var build_redo_commands: Array[Dictionary] = []
 var entrances := {}
 var event_feed: Array[Dictionary] = []
 var weekly_reports: Array[Dictionary] = []
@@ -51,6 +56,8 @@ var shopper_thoughts: Array[Dictionary] = []
 var tycoon_metrics: Dictionary = {}
 var heatmap_mode := "none"
 var heatmap_cells: Dictionary = {}
+var build_root: Node3D
+var build_preview_root: Node3D
 var heatmap_overlay_root: Node3D
 var staff_units: Array[Dictionary] = []
 var active_incidents: Array[Dictionary] = []
@@ -69,8 +76,13 @@ var session_started := false
 var active_save_slot := 1
 var selected_scenario_index := 0
 var autosave_enabled := true
+var tutorial_guidance_enabled := true
+var launch_view := "overview"
 var first_objective_step := "inspect_traffic"
 var launch_overlay: Control
+var milestone_overlay: Control
+var confirm_overlay: Control
+var pending_confirm_action := ""
 var guidance_panel: Panel
 var guidance_title: Label
 var guidance_body: Label
@@ -120,6 +132,12 @@ func _ready() -> void:
 	cash = int(blueprint.get("starting_cash", 28000))
 
 	_build_architecture()
+	build_root = Node3D.new()
+	build_root.name = "PlayerConstruction"
+	add_child(build_root)
+	build_preview_root = Node3D.new()
+	build_preview_root.name = "BuildPreview"
+	add_child(build_preview_root)
 	heatmap_overlay_root = Node3D.new()
 	heatmap_overlay_root.name = "HeatmapOverlay"
 	add_child(heatmap_overlay_root)
@@ -218,7 +236,9 @@ func _process(delta: float) -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:
 		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-			if selected_place_amenity != "":
+			if selected_build_tool != "":
+				_place_build_tool_at_screen(event.position)
+			elif selected_place_amenity != "":
 				_place_amenity_at_screen(event.position)
 			else:
 				_select_store_at_screen(event.position)
@@ -274,12 +294,6 @@ func _build_architecture() -> void:
 	# Main Site Podium — large enough to cover 4 wings + corners
 	_box("Site", Vector3(0, -0.45, 0), Vector3(100, 0.7, 100), Color("#0b1220"), 0.12, 0.9)
 
-	# Corner fill slabs between wings (to avoid void gaps at intersections)
-	for cx in [-16.0, 16.0]:
-		for cz in [-16.0, 16.0]:
-			_box("CornerSlab_%d_%d" % [int(cx), int(cz)], Vector3(cx, 0.0, cz),
-				Vector3(16.0, 0.18, 16.0), Color("#1e293b"), 0.1, 0.8)
-
 	# Walkable Concourse Galleries from blueprint
 	for corridor in blueprint.get("corridors", []):
 		var center: Array = corridor.center
@@ -293,36 +307,78 @@ func _build_architecture() -> void:
 			0.22 if is_atrium else 0.15,
 			0.15 if is_atrium else 0.25
 		)
+		_build_corridor_details(corridor)
 
-	# Brass Circulation Inlays — dual-lane along each wing axis
-	# East/West wing (X axis): two lanes at z = ±2.8
-	_box("BrassInlayEW_N", Vector3(0, 0.12, -2.8), Vector3(80.0, 0.025, 0.14), Color("#caa85e"), 0.85, 0.2)
-	_box("BrassInlayEW_S", Vector3(0, 0.12,  2.8), Vector3(80.0, 0.025, 0.14), Color("#caa85e"), 0.85, 0.2)
-	# North/South wing (Z axis): two lanes at x = ±2.8
-	_box("BrassInlayNS_W", Vector3(-2.8, 0.12, 0), Vector3(0.14, 0.025, 80.0), Color("#caa85e"), 0.85, 0.2)
-	_box("BrassInlayNS_E", Vector3( 2.8, 0.12, 0), Vector3(0.14, 0.025, 80.0), Color("#caa85e"), 0.85, 0.2)
+	_build_expansion_guides()
 
-	# Skylight Beams — along East/West wing
-	for x in [-30.0, -20.0, -10.0, 10.0, 20.0, 30.0]:
-		_box("SkylightBeam_EW_%d" % int(x), Vector3(x, 4.4, 0), Vector3(0.18, 0.2, 9.0), Color("#38bdf8"), 0.7, 0.1)
-	# Skylight Beams — along North/South wing
-	for z in [-30.0, -20.0, -10.0, 10.0, 20.0, 30.0]:
-		_box("SkylightBeam_NS_%d" % int(z), Vector3(0, 4.4, z), Vector3(9.0, 0.2, 0.18), Color("#38bdf8"), 0.7, 0.1)
-
-	# Wing intersection corner benches (4 corners)
-	var corner_positions := [Vector3(12, 0, -12), Vector3(-12, 0, -12), Vector3(12, 0, 12), Vector3(-12, 0, 12)]
-	for i in corner_positions.size():
-		var cp: Vector3 = corner_positions[i]
-		_box("CornerBench_%d" % i, cp, Vector3(2.2, 0.48, 0.7), Color("#334155"), 0.3, 0.5)
-		_box("CornerBenchBack_%d" % i, cp + Vector3(0, 0.42, 0), Vector3(2.2, 0.35, 0.2), Color("#1e293b"), 0.2, 0.5)
-
-	# Grand Center Court Fountain (expanded)
 	_build_center_court_fountain()
+
+func _build_corridor_details(corridor: Dictionary) -> void:
+	var center: Array = corridor.get("center", [0, 0])
+	var size_data: Array = corridor.get("size", [8, 8])
+	var axis := str(corridor.get("axis", "x"))
+	var cx := float(center[0])
+	var cz := float(center[1])
+	var w := float(size_data[0])
+	var d := float(size_data[1])
+	if axis == "z":
+		_box("BrassInlay_%s_A" % str(corridor.get("id", "corridor")), Vector3(cx - w * 0.22, 0.13, cz), Vector3(0.12, 0.025, maxf(3.0, d - 2.0)), Color("#caa85e"), 0.85, 0.2)
+		_box("BrassInlay_%s_B" % str(corridor.get("id", "corridor")), Vector3(cx + w * 0.22, 0.13, cz), Vector3(0.12, 0.025, maxf(3.0, d - 2.0)), Color("#caa85e"), 0.85, 0.2)
+		for offset in range(-int(d * 0.5) + 4, int(d * 0.5), 8):
+			_box("Skylight_%s_%d" % [str(corridor.get("id", "corridor")), offset], Vector3(cx, 4.2, cz + float(offset)), Vector3(maxf(3.0, w - 1.0), 0.18, 0.14), Color("#38bdf8"), 0.7, 0.1)
+	elif axis == "x":
+		_box("BrassInlay_%s_A" % str(corridor.get("id", "corridor")), Vector3(cx, 0.13, cz - d * 0.22), Vector3(maxf(3.0, w - 2.0), 0.025, 0.12), Color("#caa85e"), 0.85, 0.2)
+		_box("BrassInlay_%s_B" % str(corridor.get("id", "corridor")), Vector3(cx, 0.13, cz + d * 0.22), Vector3(maxf(3.0, w - 2.0), 0.025, 0.12), Color("#caa85e"), 0.85, 0.2)
+		for offset in range(-int(w * 0.5) + 4, int(w * 0.5), 8):
+			_box("Skylight_%s_%d" % [str(corridor.get("id", "corridor")), offset], Vector3(cx + float(offset), 4.2, cz), Vector3(0.14, 0.18, maxf(3.0, d - 1.0)), Color("#38bdf8"), 0.7, 0.1)
+
+func _build_expansion_guides() -> void:
+	for guide in blueprint.get("expansion_guides", []):
+		var center: Array = guide.get("center", [0, 0])
+		var size_data: Array = guide.get("size", [10, 10])
+		_box(
+			str(guide.get("id", "expansion")),
+			Vector3(float(center[0]), -0.05, float(center[1])),
+			Vector3(float(size_data[0]), 0.08, float(size_data[1])),
+			Color(0.15, 0.23, 0.36, 0.38),
+			0.02,
+			0.8,
+			self,
+			true
+		)
+		var label := Label3D.new()
+		label.text = str(guide.get("name", "Expansion")).to_upper()
+		label.font_size = 20
+		label.outline_size = 6
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.modulate = Color("#94a3b8")
+		label.position = Vector3(float(center[0]), 0.45, float(center[1]))
+		add_child(label)
+		for port in guide.get("ports", []):
+			var port_pos: Array = port.get("position", center)
+			_box(
+				"%s_port" % str(guide.get("id", "expansion")),
+				Vector3(float(port_pos[0]), 0.08, float(port_pos[1])),
+				Vector3(5.6, 0.1, 5.6),
+				Color(0.34, 0.9, 1.0, 0.42),
+				0.15,
+				0.25,
+				self,
+				true
+			)
+			var port_label := Label3D.new()
+			port_label.text = str(port.get("label", "Build hallway")).to_upper()
+			port_label.font_size = 16
+			port_label.outline_size = 5
+			port_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+			port_label.modulate = Color("#cffafe")
+			port_label.position = Vector3(float(port_pos[0]), 0.9, float(port_pos[1]))
+			add_child(port_label)
 
 func _build_center_court_fountain() -> void:
 	var root := Node3D.new()
 	root.name = "CenterCourtFountain"
-	root.position = Vector3(0, 0, 0)
+	root.position = _center_court_position()
 	add_child(root)
 
 	# Grand outer basin — wider for the larger rotunda
@@ -347,6 +403,13 @@ func _build_center_court_fountain() -> void:
 			Vector3(bx, 0.24, bz), Vector3(2.4, 0.48, 0.72), Color("#1e3a5f"), 0.3, 0.5, root)
 		if bench != null:
 			bench.rotation_degrees.y = -angle_deg
+
+func _center_court_position() -> Vector3:
+	for corridor in blueprint.get("corridors", []):
+		if str(corridor.get("material", "")) == "atrium" or str(corridor.get("axis", "")) == "c":
+			var center: Array = corridor.get("center", [0, 0])
+			return Vector3(float(center[0]), 0.0, float(center[1]))
+	return Vector3.ZERO
 
 
 
@@ -631,6 +694,39 @@ func _build_entrance_portal(id: String, x: float, z: float, facing: float) -> vo
 	label.modulate = Color("#a5f3fc")
 	label.position = Vector3(0, 3.35, 0.42)
 	root.add_child(label)
+
+func _build_custom_corridor_model(corridor: Dictionary) -> void:
+	if build_root == null:
+		return
+	var center: Array = corridor.get("center", [0, 0])
+	var size_data: Array = corridor.get("size", [6, 6])
+	var node := _box(
+		str(corridor.get("id", "custom_hall")),
+		Vector3(float(center[0]), 0.035, float(center[1])),
+		Vector3(float(size_data[0]), 0.2, float(size_data[1])),
+		Color("#f1f5f9"),
+		0.18,
+		0.22,
+		build_root
+	)
+	node.set_meta("custom_corridor_id", str(corridor.get("id", "")))
+	_box(
+		"%sInlay" % str(corridor.get("id", "custom_hall")),
+		Vector3(float(center[0]), 0.155, float(center[1])),
+		Vector3(maxf(0.18, float(size_data[0]) - 1.0), 0.025, 0.16),
+		Color("#caa85e"),
+		0.75,
+		0.18,
+		build_root
+	)
+
+func _rebuild_custom_corridors() -> void:
+	if build_root == null:
+		return
+	for child in build_root.get_children():
+		child.queue_free()
+	for corridor in custom_corridors:
+		_build_custom_corridor_model(corridor)
 
 # ==============================================================================
 # SHOPPER SPAWNING & FOUNTAIN-AVOIDANCE CONCOURSE PATHFINDING
@@ -951,6 +1047,7 @@ func _count_open_stores() -> int:
 	return stores.size() - _count_vacant_stores()
 
 func _reset_for_new_game() -> void:
+	blueprint = _load_json("res://data/aurora_grand.json")
 	for shopper in get_tree().get_nodes_in_group("shoppers"):
 		shopper.queue_free()
 	active_shoppers = 0
@@ -966,7 +1063,12 @@ func _reset_for_new_game() -> void:
 	current_drawer = "inspector"
 	selected_directory_cat = "All"
 	selected_place_amenity = ""
+	selected_build_tool = ""
+	pending_build_command.clear()
 	placed_amenities.clear()
+	custom_corridors.clear()
+	build_commands.clear()
+	build_redo_commands.clear()
 	event_feed.clear()
 	weekly_reports.clear()
 	shopper_thoughts.clear()
@@ -983,6 +1085,7 @@ func _reset_for_new_game() -> void:
 	prestige_tier = 1
 	tutorial_seen.clear()
 	mobile_shopper_budget = 34
+	tutorial_guidance_enabled = true
 	first_objective_step = "inspect_traffic"
 	_initialize_scenario()
 
@@ -1081,6 +1184,8 @@ func _first_vacant_store_index() -> int:
 	return 0
 
 func _rebuild_world_visual_state() -> void:
+	pending_build_command.clear()
+	_clear_build_preview()
 	for shopper in get_tree().get_nodes_in_group("shoppers"):
 		shopper.queue_free()
 	active_shoppers = 0
@@ -1093,6 +1198,7 @@ func _rebuild_world_visual_state() -> void:
 		_build_store_model(i, store, north)
 	for i in placed_amenities.size():
 		_build_amenity_model(i, placed_amenities[i])
+	_rebuild_custom_corridors()
 	if staff_root != null:
 		_rebuild_staff_nodes()
 	if incident_root != null:
@@ -1783,6 +1889,281 @@ func _vacate_selected_store() -> void:
 # ==============================================================================
 # AMENITIES & CONCOURSE PLACEMENT
 # ==============================================================================
+func _select_build_tool(tool_id: String) -> void:
+	selected_build_tool = tool_id
+	selected_place_amenity = ""
+	sound_mgr.play_click()
+	if tool_id == "demolish_hallway":
+		_add_event("Demolish Tool Active", "Tap a player-built hallway tile, then confirm removal.", "info")
+	else:
+		_add_event("Build Tool Active", "Tap the site to preview a hallway tile. New tiles must connect near existing concourse.", "info")
+	_render_drawer_content()
+
+func _cancel_build_tool() -> void:
+	selected_build_tool = ""
+	pending_build_command.clear()
+	_clear_build_preview()
+	sound_mgr.play_click()
+	_render_drawer_content()
+
+func _place_build_tool_at_screen(screen_pos: Vector2) -> void:
+	var camera := $CameraRig/Camera3D as Camera3D
+	var origin := camera.project_ray_origin(screen_pos)
+	var dir := camera.project_ray_normal(screen_pos)
+	var plane := Plane(Vector3.UP, 0.0)
+	var hit = plane.intersects_ray(origin, dir)
+	if hit == null:
+		return
+	var hit_pos: Vector3 = hit
+	match selected_build_tool:
+		"hallway":
+			_preview_place_hallway_command(hit_pos)
+		"demolish_hallway":
+			_preview_demolish_hallway_command(hit_pos)
+		_:
+			sound_mgr.play_error()
+
+func _preview_place_hallway_command(world_pos: Vector3) -> void:
+	var cost := 900
+	if cash < cost:
+		sound_mgr.play_error()
+		_add_event("Not Enough Cash", "Hallway tile requires $%s." % _comma(cost), "warning")
+		return
+	var center := _snap_build_position(world_pos)
+	if not _is_valid_hallway_position(center):
+		sound_mgr.play_error()
+		_add_event("Invalid Hallway", "Place hallway tiles next to existing concourse and outside store lots.", "warning")
+		return
+
+	var corridor := {
+		"id": "custom_hall_%d" % (build_commands.size() + 1),
+		"center": [center.x, center.z],
+		"size": [6.0, 6.0],
+		"axis": "custom",
+		"material": "terrazzo"
+	}
+	pending_build_command = {
+		"type": "place_corridor",
+		"cost": cost,
+		"corridor": corridor
+	}
+	_show_build_preview(corridor)
+	sound_mgr.play_click()
+	_add_event("Hallway Preview", "Confirm placement to spend $%s." % _comma(cost), "info")
+	_render_drawer_content()
+
+func _preview_demolish_hallway_command(world_pos: Vector3) -> void:
+	var center := _snap_build_position(world_pos)
+	var corridor := _custom_corridor_at(center)
+	if corridor.is_empty():
+		sound_mgr.play_error()
+		_add_event("Nothing To Demolish", "Only player-built hallway tiles can be demolished in this mode.", "warning")
+		return
+	var refund := 360
+	pending_build_command = {
+		"type": "remove_corridor",
+		"refund": refund,
+		"corridor": corridor.duplicate(true)
+	}
+	_show_demolition_preview(corridor)
+	sound_mgr.play_click()
+	_add_event("Demolition Preview", "Confirm removal to recover $%s." % _comma(refund), "info")
+	_render_drawer_content()
+
+func _confirm_pending_build_command() -> void:
+	if pending_build_command.is_empty():
+		sound_mgr.play_error()
+		return
+	var cost := int(pending_build_command.get("cost", 0))
+	if cash < cost:
+		sound_mgr.play_error()
+		return
+	_apply_build_command(pending_build_command)
+	build_commands.append(pending_build_command.duplicate(true))
+	build_redo_commands.clear()
+	pending_build_command.clear()
+	_clear_build_preview()
+	var command_type := str(build_commands.back().get("type", ""))
+	if command_type == "remove_corridor":
+		cash += int(build_commands.back().get("refund", 0))
+	else:
+		cash -= cost
+	sound_mgr.play_place()
+	if command_type == "remove_corridor":
+		_add_event("Hallway Demolished", "Removed custom concourse and recovered $%s." % _comma(int(build_commands.back().get("refund", 0))), "success")
+	else:
+		_add_event("Hallway Built", "Extended public concourse for $%s." % _comma(cost), "success")
+	_save_game()
+	_refresh_stats_hud()
+	_render_drawer_content()
+
+func _apply_build_command(command: Dictionary) -> void:
+	match str(command.get("type", "")):
+		"place_corridor":
+			var corridor: Dictionary = command.get("corridor", {})
+			custom_corridors.append(corridor)
+			_add_corridor_to_blueprint(corridor)
+			_build_custom_corridor_model(corridor)
+		"remove_corridor":
+			var corridor: Dictionary = command.get("corridor", {})
+			_remove_custom_corridor(str(corridor.get("id", "")))
+
+func _undo_last_build_command() -> void:
+	if build_commands.is_empty():
+		sound_mgr.play_error()
+		return
+	var command: Dictionary = build_commands.pop_back()
+	match str(command.get("type", "")):
+		"place_corridor":
+			var corridor: Dictionary = command.get("corridor", {})
+			_remove_custom_corridor(str(corridor.get("id", "")))
+			cash += int(command.get("cost", 0))
+			build_redo_commands.append(command)
+			_add_event("Build Undone", "Removed last hallway tile and refunded $%s." % _comma(int(command.get("cost", 0))), "info")
+			sound_mgr.play_demolish()
+		"remove_corridor":
+			var corridor: Dictionary = command.get("corridor", {})
+			custom_corridors.append(corridor)
+			_add_corridor_to_blueprint(corridor)
+			_build_custom_corridor_model(corridor)
+			cash -= int(command.get("refund", 0))
+			build_redo_commands.append(command)
+			_add_event("Demolition Undone", "Restored the removed hallway tile.", "info")
+			sound_mgr.play_place()
+	_save_game()
+	_refresh_stats_hud()
+	_render_drawer_content()
+
+func _redo_build_command() -> void:
+	if build_redo_commands.is_empty():
+		sound_mgr.play_error()
+		return
+	var command: Dictionary = build_redo_commands.pop_back()
+	var cost := int(command.get("cost", 0))
+	if cash < cost:
+		sound_mgr.play_error()
+		return
+	_apply_build_command(command)
+	build_commands.append(command)
+	if str(command.get("type", "")) == "remove_corridor":
+		cash += int(command.get("refund", 0))
+		_add_event("Demolition Redone", "Removed hallway tile and recovered $%s." % _comma(int(command.get("refund", 0))), "success")
+	else:
+		cash -= cost
+		_add_event("Build Redone", "Rebuilt hallway tile for $%s." % _comma(cost), "success")
+	sound_mgr.play_place()
+	_save_game()
+	_refresh_stats_hud()
+	_render_drawer_content()
+
+func _show_build_preview(corridor: Dictionary) -> void:
+	_clear_build_preview()
+	if build_preview_root == null:
+		return
+	var center: Array = corridor.get("center", [0, 0])
+	var size_data: Array = corridor.get("size", [6, 6])
+	_box(
+		"HallwayGhost",
+		Vector3(float(center[0]), 0.22, float(center[1])),
+		Vector3(float(size_data[0]), 0.12, float(size_data[1])),
+		Color(0.2, 0.8, 1.0, 0.42),
+		0.15,
+		0.12,
+		build_preview_root,
+		true
+	)
+	var label := Label3D.new()
+	label.text = "CONFIRM"
+	label.font_size = 26
+	label.outline_size = 7
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.modulate = Color("#e0f2fe")
+	label.position = Vector3(float(center[0]), 1.05, float(center[1]))
+	build_preview_root.add_child(label)
+
+func _show_demolition_preview(corridor: Dictionary) -> void:
+	_clear_build_preview()
+	if build_preview_root == null:
+		return
+	var center: Array = corridor.get("center", [0, 0])
+	var size_data: Array = corridor.get("size", [6, 6])
+	_box(
+		"DemolitionGhost",
+		Vector3(float(center[0]), 0.26, float(center[1])),
+		Vector3(float(size_data[0]), 0.14, float(size_data[1])),
+		Color(1.0, 0.25, 0.35, 0.44),
+		0.05,
+		0.2,
+		build_preview_root,
+		true
+	)
+	var label := Label3D.new()
+	label.text = "REMOVE"
+	label.font_size = 26
+	label.outline_size = 7
+	label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+	label.modulate = Color("#fecaca")
+	label.position = Vector3(float(center[0]), 1.05, float(center[1]))
+	build_preview_root.add_child(label)
+
+func _clear_build_preview() -> void:
+	if build_preview_root == null:
+		return
+	for child in build_preview_root.get_children():
+		child.queue_free()
+
+func _custom_corridor_at(center: Vector3) -> Dictionary:
+	for corridor in custom_corridors:
+		var c: Array = corridor.get("center", [0, 0])
+		var size_data: Array = corridor.get("size", [6, 6])
+		if absf(center.x - float(c[0])) <= float(size_data[0]) * 0.5 and absf(center.z - float(c[1])) <= float(size_data[1]) * 0.5:
+			return corridor
+	return {}
+
+func _snap_build_position(world_pos: Vector3) -> Vector3:
+	return Vector3(roundf(world_pos.x / 6.0) * 6.0, 0.0, roundf(world_pos.z / 6.0) * 6.0)
+
+func _is_valid_hallway_position(center: Vector3) -> bool:
+	for store in stores:
+		var pos: Vector3 = store.get("position", Vector3.ZERO)
+		var w := float(store.get("width", 7.5)) * 0.5 + 3.0
+		var d := float(store.get("depth", 6.0)) * 0.5 + 3.0
+		if absf(center.x - pos.x) < w and absf(center.z - pos.z) < d:
+			return false
+	var connected := false
+	for corridor in blueprint.get("corridors", []):
+		var c: Array = corridor.get("center", [0, 0])
+		var size_data: Array = corridor.get("size", [6, 6])
+		var dx := absf(center.x - float(c[0]))
+		var dz := absf(center.z - float(c[1]))
+		if dx < float(size_data[0]) * 0.5 and dz < float(size_data[1]) * 0.5:
+			return false
+		var near_x := dx <= float(size_data[0]) * 0.5 + 4.25
+		var near_z := dz <= float(size_data[1]) * 0.5 + 4.25
+		if near_x and near_z:
+			connected = true
+			break
+	return connected
+
+func _add_corridor_to_blueprint(corridor: Dictionary) -> void:
+	var corridors: Array = blueprint.get("corridors", [])
+	for existing in corridors:
+		if str(existing.get("id", "")) == str(corridor.get("id", "")):
+			return
+	corridors.append(corridor)
+	blueprint["corridors"] = corridors
+
+func _remove_custom_corridor(corridor_id: String) -> void:
+	for i in range(custom_corridors.size() - 1, -1, -1):
+		if str(custom_corridors[i].get("id", "")) == corridor_id:
+			custom_corridors.remove_at(i)
+	var corridors: Array = blueprint.get("corridors", [])
+	for i in range(corridors.size() - 1, -1, -1):
+		if str(corridors[i].get("id", "")) == corridor_id:
+			corridors.remove_at(i)
+	blueprint["corridors"] = corridors
+	_rebuild_custom_corridors()
+
 func _place_amenity_at_screen(screen_pos: Vector2) -> void:
 	var camera := $CameraRig/Camera3D as Camera3D
 	var origin := camera.project_ray_origin(screen_pos)
@@ -1882,12 +2263,13 @@ func _build_ui() -> void:
 	last_viewport_size = viewport_size
 	var screen_w := maxf(960.0, viewport_size.x)
 	var screen_h := maxf(600.0, viewport_size.y)
-	var margin := 14.0
+	var margin := _safe_ui_margin(viewport_size)
 	var top_w := screen_w - margin * 2.0
 	var drawer_w := 386.0
 	var drawer_h := clampf(screen_h - 178.0, 390.0, 542.0)
 	var drawer_x := screen_w - drawer_w - margin
 	var nav_y := screen_h - 78.0
+	var compact_ui := screen_w < 1100.0
 
 	# 1. Top Bar
 	var top := _panel(Vector2(margin, 12), Vector2(top_w, 64), Color(0.04, 0.06, 0.1, 0.94))
@@ -1901,45 +2283,48 @@ func _build_ui() -> void:
 	brand_sub.position = Vector2(20, 36)
 	top.add_child(brand_sub)
 
-	date_label = _label("W1 · D1", 14, Color("#cbd5e1"), true)
-	date_label.position = Vector2(175, 20)
+	date_label = _label("W1 · D1", 13, Color("#cbd5e1"), true)
+	date_label.position = Vector2(140 if compact_ui else 175, 20)
 	top.add_child(date_label)
 
-	cash_label = _label("$28,000", 17, Color("#fbbf24"), true)
-	cash_label.position = Vector2(275, 18)
+	cash_label = _label("$28,000", 16, Color("#fbbf24"), true)
+	cash_label.position = Vector2(222 if compact_ui else 275, 18)
 	top.add_child(cash_label)
 
-	guests_label = _label("0 GUESTS", 12, Color("#34d399"))
-	guests_label.position = Vector2(415, 22)
+	guests_label = _label("0 GUESTS", 11, Color("#34d399"))
+	guests_label.position = Vector2(336 if compact_ui else 415, 22)
 	top.add_child(guests_label)
 
-	rep_label = _label("76% REP", 12, Color("#a78bfa"))
-	rep_label.position = Vector2(515, 22)
+	rep_label = _label("76% REP", 11, Color("#a78bfa"))
+	rep_label.position = Vector2(426 if compact_ui else 515, 22)
+	rep_label.visible = not compact_ui
 	top.add_child(rep_label)
 
-	clean_label = _label("95% CLN", 12, Color("#38bdf8"))
-	clean_label.position = Vector2(605, 22)
+	clean_label = _label("95% CLN", 11, Color("#38bdf8"))
+	clean_label.position = Vector2(508 if compact_ui else 605, 22)
+	clean_label.visible = not compact_ui
 	top.add_child(clean_label)
 
 	# Sim Speed Controls
-	var pause_btn := _button("Ⅱ", Vector2(705, 12), Vector2(38, 38))
+	var sim_x := top_w - (430.0 if compact_ui else 547.0)
+	var pause_btn := _button("Ⅱ", Vector2(sim_x, 12), Vector2(38, 38))
 	pause_btn.pressed.connect(_set_sim_speed.bind(0.0))
 	top.add_child(pause_btn)
 
-	var speed1_btn := _button("1×", Vector2(748, 12), Vector2(42, 38))
+	var speed1_btn := _button("1×", Vector2(sim_x + 43.0, 12), Vector2(42, 38))
 	speed1_btn.pressed.connect(_set_sim_speed.bind(1.0))
 	top.add_child(speed1_btn)
 
-	var speed2_btn := _button("2×", Vector2(795, 12), Vector2(42, 38))
+	var speed2_btn := _button("2×", Vector2(sim_x + 90.0, 12), Vector2(42, 38))
 	speed2_btn.pressed.connect(_set_sim_speed.bind(2.0))
 	top.add_child(speed2_btn)
 
 	speed_label = _label("1×", 12, Color("#38bdf8"))
-	speed_label.position = Vector2(845, 22)
+	speed_label.position = Vector2(sim_x + 140.0, 22)
 	top.add_child(speed_label)
 
 	# Sound Toggle & Save
-	sound_btn = _button("🔊 SOUND", Vector2(880, 12), Vector2(85, 38))
+	sound_btn = _button("🔊", Vector2(top_w - 292.0, 12), Vector2(48, 38))
 	sound_btn.pressed.connect(_toggle_sound)
 	top.add_child(sound_btn)
 
@@ -2017,7 +2402,6 @@ func _rebuild_ui_if_viewport_changed() -> void:
 func _show_launch_overlay() -> void:
 	if ui_root == null:
 		return
-	session_started = false
 	Engine.time_scale = 0.0
 	if launch_overlay != null:
 		launch_overlay.queue_free()
@@ -2033,7 +2417,18 @@ func _show_launch_overlay() -> void:
 	scrim.set_anchors_preset(Control.PRESET_FULL_RECT)
 	launch_overlay.add_child(scrim)
 
-	var card := _panel(Vector2(92, 82), Vector2(430, 492), Color(0.025, 0.04, 0.075, 0.97))
+	var viewport_size := get_viewport().get_visible_rect().size
+	var screen_w := maxf(960.0, viewport_size.x)
+	var screen_h := maxf(600.0, viewport_size.y)
+	var margin := _safe_ui_margin(viewport_size)
+	var card_w := 430.0
+	var side_w := 368.0
+	var panel_h := minf(560.0, screen_h - margin * 2.0)
+	var total_w := card_w + side_w + 26.0
+	var start_x := maxf(margin, (screen_w - total_w) * 0.5)
+	var start_y := maxf(margin, (screen_h - panel_h) * 0.5)
+
+	var card := _panel(Vector2(start_x, start_y), Vector2(card_w, panel_h), Color(0.025, 0.04, 0.075, 0.97))
 	launch_overlay.add_child(card)
 
 	var eyebrow := _label("AURORA MALL TYCOON", 11, Color("#38bdf8"), true)
@@ -2052,17 +2447,22 @@ func _show_launch_overlay() -> void:
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	card.add_child(desc)
 
-	var continue_btn := _button("Continue Saved Mall", Vector2(28, 238), Vector2(374, 46))
+	if session_started:
+		var resume_btn := _button("Resume Current Mall", Vector2(28, 220), Vector2(374, 40))
+		resume_btn.pressed.connect(_resume_current_session)
+		card.add_child(resume_btn)
+
+	var continue_btn := _button("Continue Saved Mall", Vector2(28, 268 if session_started else 238), Vector2(374, 40))
 	continue_btn.disabled = not _has_any_save()
 	continue_btn.pressed.connect(_continue_saved_game)
 	card.add_child(continue_btn)
 
-	var new_btn := _button("New Game: Starter Wing", Vector2(28, 294), Vector2(374, 50))
+	var new_btn := _button("New Game: Starter Wing", Vector2(28, 316 if session_started else 294), Vector2(374, 44))
 	new_btn.pressed.connect(_start_new_game)
 	card.add_child(new_btn)
 
 	var goals := _label("First session goals:\n- Lease one vacant unit\n- Watch your first shoppers arrive\n- Finish Week 1 with a readable result", 11, Color("#94a3b8"))
-	goals.position = Vector2(28, 366)
+	goals.position = Vector2(28, 386)
 	goals.size = Vector2(374, 88)
 	card.add_child(goals)
 
@@ -2070,14 +2470,80 @@ func _show_launch_overlay() -> void:
 	note.position = Vector2(28, 458)
 	card.add_child(note)
 
-	var side := _panel(Vector2(548, 82), Vector2(368, 492), Color(0.025, 0.04, 0.075, 0.94))
+	var side := _panel(Vector2(start_x + card_w + 26.0, start_y), Vector2(side_w, panel_h), Color(0.025, 0.04, 0.075, 0.94))
 	launch_overlay.add_child(side)
 
-	var scenario_title := _label("SCENARIOS", 11, Color("#38bdf8"), true)
-	scenario_title.position = Vector2(24, 24)
-	side.add_child(scenario_title)
+	_render_launch_side_panel(side, panel_h)
 
-	var y := 54
+func _render_launch_side_panel(side: Panel, panel_h: float) -> void:
+	var views := [
+		{"id": "overview", "label": "Home"},
+		{"id": "scenarios", "label": "Scenarios"},
+		{"id": "settings", "label": "Settings"},
+		{"id": "saves", "label": "Saves"}
+	]
+	for i in views.size():
+		var view: Dictionary = views[i]
+		var btn := _button(str(view.label), Vector2(18 + i * 84, 18), Vector2(76, 30))
+		if str(view.id) == launch_view:
+			btn.modulate = Color("#38bdf8")
+		btn.pressed.connect(_set_launch_view.bind(str(view.id)))
+		side.add_child(btn)
+
+	match launch_view:
+		"scenarios":
+			_render_launch_scenarios(side, panel_h)
+		"settings":
+			_render_launch_settings(side, panel_h)
+		"saves":
+			_render_launch_saves(side, panel_h)
+		_:
+			_render_launch_overview(side, panel_h)
+
+func _render_launch_overview(side: Panel, _panel_h: float) -> void:
+	var title := _label("OWNER DASHBOARD", 11, Color("#38bdf8"), true)
+	title.position = Vector2(24, 68)
+	side.add_child(title)
+
+	var scenario_name := "Free Build"
+	if scenarios_catalog.size() > 0:
+		scenario_name = str(scenarios_catalog[clampi(selected_scenario_index, 0, scenarios_catalog.size() - 1)].get("name", "Scenario"))
+	var summary := _label("Selected scenario: %s\nSave slot: %d %s\nAutosave: %s\nGuidance: %s\nCrowd budget: %d shoppers" % [
+		scenario_name,
+		active_save_slot,
+		_slot_label(active_save_slot),
+		"On" if autosave_enabled else "Off",
+		"On" if tutorial_guidance_enabled else "Off",
+		mobile_shopper_budget
+	], 11, Color("#cbd5e1"))
+	summary.position = Vector2(24, 98)
+	summary.size = Vector2(320, 118)
+	side.add_child(summary)
+
+	var scenario_btn := _button("Choose Scenario", Vector2(24, 248), Vector2(320, 40))
+	scenario_btn.pressed.connect(_set_launch_view.bind("scenarios"))
+	side.add_child(scenario_btn)
+
+	var settings_btn := _button("Tune Settings", Vector2(24, 298), Vector2(154, 36))
+	settings_btn.pressed.connect(_set_launch_view.bind("settings"))
+	side.add_child(settings_btn)
+
+	var saves_btn := _button("Manage Saves", Vector2(190, 298), Vector2(154, 36))
+	saves_btn.pressed.connect(_set_launch_view.bind("saves"))
+	side.add_child(saves_btn)
+
+	var hint := _label("The first ten minutes should teach lease, observe, fix, and read the week. Everything here exists to protect that opening loop.", 10, Color("#94a3b8"))
+	hint.position = Vector2(24, 370)
+	hint.size = Vector2(320, 70)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	side.add_child(hint)
+
+func _render_launch_scenarios(side: Panel, _panel_h: float) -> void:
+	var title := _label("SCENARIO SELECT", 11, Color("#38bdf8"), true)
+	title.position = Vector2(24, 68)
+	side.add_child(title)
+
+	var y := 98
 	for i in scenarios_catalog.size():
 		var scenario: Dictionary = scenarios_catalog[i]
 		var row := _button(str(scenario.get("name", "Scenario")), Vector2(24, y), Vector2(320, 34))
@@ -2085,37 +2551,89 @@ func _show_launch_overlay() -> void:
 			row.modulate = Color("#38bdf8")
 		row.pressed.connect(_select_launch_scenario.bind(i))
 		side.add_child(row)
-		var desc_line := _label(str(scenario.get("description", "")), 9, Color("#94a3b8"))
+		var desc_line := _label("%s · Reward $%s" % [str(scenario.get("description", "")), _comma(int(scenario.get("reward_cash", 0)))], 9, Color("#94a3b8"))
 		desc_line.position = Vector2(28, y + 36)
-		desc_line.size = Vector2(312, 28)
+		desc_line.size = Vector2(312, 32)
 		desc_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		side.add_child(desc_line)
-		y += 74
+		y += 78
 
-	var start_scenario_btn := _button("Start Selected Scenario", Vector2(24, 284), Vector2(320, 42))
+	var start_scenario_btn := _button("Start Selected Scenario", Vector2(24, 372), Vector2(320, 42))
 	start_scenario_btn.pressed.connect(_start_selected_scenario)
 	side.add_child(start_scenario_btn)
 
-	var settings_title := _label("SETTINGS", 11, Color("#38bdf8"), true)
-	settings_title.position = Vector2(24, 352)
-	side.add_child(settings_title)
+	var note := _label("Scenario starts still use Starter Wing rules, then apply scenario pressure. Campaign progression arrives in Phase H.", 9, Color("#64748b"))
+	note.position = Vector2(24, 432)
+	note.size = Vector2(320, 52)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	side.add_child(note)
 
-	var autosave_btn := _button("Autosave: %s" % ("On" if autosave_enabled else "Off"), Vector2(24, 382), Vector2(152, 34))
+func _render_launch_settings(side: Panel, _panel_h: float) -> void:
+	var title := _label("SETTINGS", 11, Color("#38bdf8"), true)
+	title.position = Vector2(24, 68)
+	side.add_child(title)
+
+	var autosave_btn := _button("Autosave: %s" % ("On" if autosave_enabled else "Off"), Vector2(24, 102), Vector2(320, 38))
 	autosave_btn.pressed.connect(_toggle_autosave_from_launch)
 	side.add_child(autosave_btn)
 
-	var budget_btn := _button("Crowd Budget: %d" % mobile_shopper_budget, Vector2(192, 382), Vector2(152, 34))
+	var tips_btn := _button("Owner Guidance: %s" % ("On" if tutorial_guidance_enabled else "Off"), Vector2(24, 152), Vector2(320, 38))
+	tips_btn.pressed.connect(_toggle_tutorial_guidance_from_launch)
+	side.add_child(tips_btn)
+
+	var budget_btn := _button("Mobile Crowd Budget: %d" % mobile_shopper_budget, Vector2(24, 202), Vector2(320, 38))
 	budget_btn.pressed.connect(_cycle_mobile_budget_from_launch)
 	side.add_child(budget_btn)
 
-	var slot_title := _label("SAVE SLOT", 11, Color("#38bdf8"), true)
-	slot_title.position = Vector2(24, 432)
-	side.add_child(slot_title)
+	var sound_state := "On"
+	if sound_mgr != null and not sound_mgr.sound_enabled:
+		sound_state = "Off"
+	var sound_toggle := _button("Sound: %s" % sound_state, Vector2(24, 252), Vector2(320, 38))
+	sound_toggle.pressed.connect(_toggle_sound)
+	side.add_child(sound_toggle)
+
+	var guidance := _label("For iOS, lower crowd budgets preserve animation and touch responsiveness. Keep owner guidance on for first-time testing.", 10, Color("#94a3b8"))
+	guidance.position = Vector2(24, 326)
+	guidance.size = Vector2(320, 78)
+	guidance.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	side.add_child(guidance)
+
+func _render_launch_saves(side: Panel, _panel_h: float) -> void:
+	var title := _label("SAVE SLOTS", 11, Color("#38bdf8"), true)
+	title.position = Vector2(24, 68)
+	side.add_child(title)
+
+	var y := 102
 	for slot in 3:
 		var slot_id := slot + 1
-		var slot_btn := _button("%d%s" % [slot_id, " *" if slot_id == active_save_slot else ""], Vector2(24 + slot * 108, 456), Vector2(94, 28))
+		var label := "Slot %d%s · %s" % [slot_id, " ACTIVE" if slot_id == active_save_slot else "", _slot_label(slot_id)]
+		var slot_btn := _button(label, Vector2(24, y), Vector2(320, 38))
+		if slot_id == active_save_slot:
+			slot_btn.modulate = Color("#38bdf8")
 		slot_btn.pressed.connect(_set_active_save_slot.bind(slot_id))
 		side.add_child(slot_btn)
+		y += 48
+
+	var restore_btn := _button("Restore Active Backup", Vector2(24, 278), Vector2(320, 38))
+	restore_btn.disabled = not FileAccess.file_exists(_backup_save_path())
+	restore_btn.pressed.connect(_confirm_restore_active_slot_backup)
+	side.add_child(restore_btn)
+
+	var delete_btn := _button("Clear Active Slot", Vector2(24, 328), Vector2(320, 38))
+	delete_btn.disabled = not FileAccess.file_exists(_active_save_path())
+	delete_btn.pressed.connect(_confirm_clear_active_save_slot)
+	side.add_child(delete_btn)
+
+	var note := _label("Clearing a slot asks for confirmation. Backups are kept separately and can be restored when available.", 10, Color("#94a3b8"))
+	note.position = Vector2(24, 404)
+	note.size = Vector2(320, 62)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	side.add_child(note)
+
+func _set_launch_view(view_id: String) -> void:
+	launch_view = view_id
+	sound_mgr.play_click()
+	_show_launch_overlay()
 
 func _continue_saved_game() -> void:
 	if not _load_game():
@@ -2123,6 +2641,13 @@ func _continue_saved_game() -> void:
 		return
 	_rebuild_world_visual_state()
 	_start_session("Welcome Back", "Continue your saved mall from Week %d, Day %d." % [week, day])
+
+func _resume_current_session() -> void:
+	if launch_overlay != null:
+		launch_overlay.queue_free()
+		launch_overlay = null
+	Engine.time_scale = 1.0
+	_refresh_ui()
 
 func _start_new_game() -> void:
 	_reset_for_new_game()
@@ -2149,6 +2674,13 @@ func _toggle_autosave_from_launch() -> void:
 	sound_mgr.play_click()
 	_show_launch_overlay()
 
+func _toggle_tutorial_guidance_from_launch() -> void:
+	tutorial_guidance_enabled = not tutorial_guidance_enabled
+	if not tutorial_guidance_enabled:
+		_clear_guidance_marker()
+	sound_mgr.play_click()
+	_show_launch_overlay()
+
 func _cycle_mobile_budget_from_launch() -> void:
 	var budgets := [24, 34, 46, 60]
 	var index := budgets.find(mobile_shopper_budget)
@@ -2160,6 +2692,127 @@ func _set_active_save_slot(slot_id: int) -> void:
 	active_save_slot = clampi(slot_id, 1, 3)
 	sound_mgr.play_click()
 	_show_launch_overlay()
+
+func _confirm_restore_active_slot_backup() -> void:
+	_show_confirm_overlay(
+		"Restore Slot %d Backup?" % active_save_slot,
+		"This replaces the current slot with its previous backup save.",
+		"Restore Backup",
+		"restore_backup"
+	)
+
+func _confirm_clear_active_save_slot() -> void:
+	_show_confirm_overlay(
+		"Clear Save Slot %d?" % active_save_slot,
+		"This removes the selected slot save. A backup file is kept if one already exists.",
+		"Clear Slot",
+		"clear_slot"
+	)
+
+func _restore_active_slot_backup() -> void:
+	var backup_path := _backup_save_path()
+	if not FileAccess.file_exists(backup_path):
+		sound_mgr.play_error()
+		return
+	var backup := FileAccess.open(backup_path, FileAccess.READ)
+	if backup == null:
+		sound_mgr.play_error()
+		return
+	var slot := FileAccess.open(_active_save_path(), FileAccess.WRITE)
+	if slot == null:
+		sound_mgr.play_error()
+		return
+	slot.store_string(backup.get_as_text())
+	_add_event("Backup Restored", "Slot %d restored from its previous save." % active_save_slot, "success")
+	sound_mgr.play_place()
+	_show_launch_overlay()
+
+func _clear_active_save_slot() -> void:
+	var path := _active_save_path()
+	if not FileAccess.file_exists(path):
+		sound_mgr.play_error()
+		return
+	var err := DirAccess.remove_absolute(ProjectSettings.globalize_path(path))
+	if err != OK:
+		sound_mgr.play_error()
+		return
+	_add_event("Save Slot Cleared", "Slot %d is empty." % active_save_slot, "warning")
+	sound_mgr.play_click()
+	_show_launch_overlay()
+
+func _show_confirm_overlay(title: String, body: String, action_label: String, action_id: String) -> void:
+	if ui_root == null:
+		return
+	if confirm_overlay != null:
+		confirm_overlay.queue_free()
+	pending_confirm_action = action_id
+	confirm_overlay = Control.new()
+	confirm_overlay.name = "ConfirmOverlay"
+	confirm_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	confirm_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	ui_root.add_child(confirm_overlay)
+
+	var scrim := ColorRect.new()
+	scrim.color = Color(0.01, 0.015, 0.025, 0.55)
+	scrim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	confirm_overlay.add_child(scrim)
+
+	var viewport_size := get_viewport().get_visible_rect().size
+	var card_w := 360.0
+	var card_h := 190.0
+	var card := _panel(Vector2((viewport_size.x - card_w) * 0.5, (viewport_size.y - card_h) * 0.5), Vector2(card_w, card_h), Color(0.035, 0.055, 0.095, 0.99))
+	confirm_overlay.add_child(card)
+
+	var title_label := _label(title, 18, Color("#ffffff"), true)
+	title_label.position = Vector2(20, 20)
+	title_label.size = Vector2(card_w - 40.0, 28)
+	card.add_child(title_label)
+
+	var body_label := _label(body, 11, Color("#cbd5e1"))
+	body_label.position = Vector2(20, 58)
+	body_label.size = Vector2(card_w - 40.0, 54)
+	body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	card.add_child(body_label)
+
+	var cancel_btn := _button("Cancel", Vector2(20, 132), Vector2(150, 34))
+	cancel_btn.pressed.connect(_dismiss_confirm_overlay)
+	card.add_child(cancel_btn)
+
+	var action_btn := _button(action_label, Vector2(190, 132), Vector2(150, 34))
+	action_btn.pressed.connect(_run_confirmed_action)
+	card.add_child(action_btn)
+
+func _dismiss_confirm_overlay() -> void:
+	pending_confirm_action = ""
+	if confirm_overlay != null:
+		confirm_overlay.queue_free()
+		confirm_overlay = null
+	sound_mgr.play_click()
+
+func _run_confirmed_action() -> void:
+	var action := pending_confirm_action
+	_dismiss_confirm_overlay()
+	match action:
+		"restore_backup":
+			_restore_active_slot_backup()
+		"clear_slot":
+			_clear_active_save_slot()
+		_:
+			sound_mgr.play_error()
+
+func _replay_first_steps() -> void:
+	tutorial_guidance_enabled = true
+	first_objective_step = "inspect_traffic"
+	selected_store_idx = _first_vacant_store_index()
+	_update_store_selection_visuals()
+	_add_event("Guidance Restarted", "First-week owner guidance has been reset.", "info")
+	_refresh_guidance_card()
+
+func _hide_tutorial_guidance() -> void:
+	tutorial_guidance_enabled = false
+	_clear_guidance_marker()
+	_refresh_guidance_card()
+	_save_game(true)
 
 func _start_session(title: String, desc: String, spawn_opening_crowd := true) -> void:
 	if launch_overlay != null:
@@ -2177,7 +2830,7 @@ func _start_session(title: String, desc: String, spawn_opening_crowd := true) ->
 	_refresh_ui()
 
 func _build_guidance_panel() -> void:
-	guidance_panel = _panel(Vector2(24, 404), Vector2(330, 150), Color(0.035, 0.055, 0.095, 0.94))
+	guidance_panel = _panel(Vector2(24, 404), Vector2(330, 184), Color(0.035, 0.055, 0.095, 0.94))
 	ui_root.add_child(guidance_panel)
 
 	var label := _label("OWNER OBJECTIVE", 10, Color("#38bdf8"), true)
@@ -2195,15 +2848,23 @@ func _build_guidance_panel() -> void:
 	guidance_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	guidance_panel.add_child(guidance_body)
 
-	guidance_action = _button("Open", Vector2(14, 112), Vector2(302, 28))
+	guidance_action = _button("Open", Vector2(14, 108), Vector2(302, 28))
 	guidance_panel.add_child(guidance_action)
+
+	var replay_btn := _button("Replay", Vector2(14, 146), Vector2(144, 26))
+	replay_btn.pressed.connect(_replay_first_steps)
+	guidance_panel.add_child(replay_btn)
+
+	var hide_btn := _button("Hide Tips", Vector2(172, 146), Vector2(144, 26))
+	hide_btn.pressed.connect(_hide_tutorial_guidance)
+	guidance_panel.add_child(hide_btn)
 	_refresh_guidance_card()
 
 func _refresh_guidance_card() -> void:
 	if guidance_panel == null:
 		return
-	guidance_panel.visible = session_started
-	if not session_started:
+	guidance_panel.visible = session_started and tutorial_guidance_enabled
+	if not session_started or not tutorial_guidance_enabled:
 		_clear_guidance_marker()
 		return
 	if selected_store_idx < 0 or selected_store_idx >= stores.size():
@@ -2308,7 +2969,55 @@ func _advance_first_objective(next_step: String) -> void:
 			_add_event("Objective Updated", "Run to the weekly statement and compare sales, costs, and tenant mood.", "info")
 		"freeplay":
 			_add_event("First Week Reviewed", "You have the core loop: lease, observe, fix, and expand.", "success")
+			_show_milestone_overlay("First Week Reviewed", "You finished the first owner loop. Now use Data, Goals, and Build mode to decide whether to expand, repair, or chase a scenario reward.")
 	_refresh_guidance_card()
+
+func _show_milestone_overlay(title: String, body: String) -> void:
+	if ui_root == null:
+		return
+	if milestone_overlay != null:
+		milestone_overlay.queue_free()
+	milestone_overlay = Control.new()
+	milestone_overlay.name = "MilestoneOverlay"
+	milestone_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	milestone_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	ui_root.add_child(milestone_overlay)
+
+	var scrim := ColorRect.new()
+	scrim.color = Color(0.01, 0.015, 0.025, 0.45)
+	scrim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	milestone_overlay.add_child(scrim)
+
+	var viewport_size := get_viewport().get_visible_rect().size
+	var card_w := 390.0
+	var card_h := 230.0
+	var card := _panel(Vector2((viewport_size.x - card_w) * 0.5, (viewport_size.y - card_h) * 0.5), Vector2(card_w, card_h), Color(0.035, 0.055, 0.095, 0.98))
+	milestone_overlay.add_child(card)
+
+	var eyebrow := _label("MILESTONE", 10, Color("#38bdf8"), true)
+	eyebrow.position = Vector2(22, 20)
+	card.add_child(eyebrow)
+
+	var title_label := _label(title, 22, Color("#ffffff"), true)
+	title_label.position = Vector2(22, 48)
+	title_label.size = Vector2(card_w - 44.0, 32)
+	card.add_child(title_label)
+
+	var body_label := _label(body, 11, Color("#cbd5e1"))
+	body_label.position = Vector2(22, 92)
+	body_label.size = Vector2(card_w - 44.0, 70)
+	body_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	card.add_child(body_label)
+
+	var keep_btn := _button("Keep Building", Vector2(22, 176), Vector2(card_w - 44.0, 34))
+	keep_btn.pressed.connect(_dismiss_milestone_overlay)
+	card.add_child(keep_btn)
+
+func _dismiss_milestone_overlay() -> void:
+	if milestone_overlay != null:
+		milestone_overlay.queue_free()
+		milestone_overlay = null
+	sound_mgr.play_click()
 
 func _update_guidance_marker(world_pos: Vector3, text: String) -> void:
 	if guidance_marker == null:
@@ -2566,13 +3275,66 @@ func _set_directory_category(c: String) -> void:
 	_render_drawer_content()
 
 func _render_architect_drawer() -> void:
-	var info_lbl := _label("Select an amenity to place on the concourse:", 11, Color("#cbd5e1"))
+	var build_title := _label("MALL LAYOUT TOOLS", 11, Color("#38bdf8"), true)
+	build_title.position = Vector2(0, 0)
+	drawer_content.add_child(build_title)
+
+	var hall_btn := _button("Place Hallway Tile · $900", Vector2(0, 24), Vector2(214, 34))
+	if selected_build_tool == "hallway":
+		hall_btn.modulate = Color("#38bdf8")
+	hall_btn.pressed.connect(_select_build_tool.bind("hallway"))
+	drawer_content.add_child(hall_btn)
+
+	var demolish_btn := _button("Demolish", Vector2(0, 66), Vector2(92, 30))
+	if selected_build_tool == "demolish_hallway":
+		demolish_btn.modulate = Color("#fb7185")
+	demolish_btn.disabled = custom_corridors.is_empty()
+	demolish_btn.pressed.connect(_select_build_tool.bind("demolish_hallway"))
+	drawer_content.add_child(demolish_btn)
+
+	var confirm_btn := _button("Confirm", Vector2(224, 24), Vector2(58, 34))
+	confirm_btn.disabled = pending_build_command.is_empty()
+	confirm_btn.pressed.connect(_confirm_pending_build_command)
+	drawer_content.add_child(confirm_btn)
+
+	var cancel_btn := _button("Cancel", Vector2(292, 24), Vector2(54, 34))
+	cancel_btn.pressed.connect(_cancel_build_tool)
+	drawer_content.add_child(cancel_btn)
+
+	var undo_btn := _button("Undo", Vector2(104, 66), Vector2(62, 30))
+	undo_btn.disabled = build_commands.is_empty()
+	undo_btn.pressed.connect(_undo_last_build_command)
+	drawer_content.add_child(undo_btn)
+
+	var redo_btn := _button("Redo", Vector2(176, 66), Vector2(62, 30))
+	redo_btn.disabled = build_redo_commands.is_empty()
+	redo_btn.pressed.connect(_redo_build_command)
+	drawer_content.add_child(redo_btn)
+
+	var history_lbl := _label("History: %d build command%s" % [build_commands.size(), "" if build_commands.size() == 1 else "s"], 9, Color("#cbd5e1"))
+	history_lbl.position = Vector2(248, 72)
+	history_lbl.size = Vector2(98, 20)
+	drawer_content.add_child(history_lbl)
+
+	var preview_text := "Tap near an existing concourse edge to preview a hallway tile."
+	if selected_build_tool == "demolish_hallway":
+		preview_text = "Tap a player-built hallway tile to preview demolition."
+	if not pending_build_command.is_empty():
+		preview_text = "Preview ready. Confirm to build, or Cancel to clear it."
+	var build_hint := _label("%s Future tools will zone lots and entrances on this command stack." % preview_text, 9, Color("#94a3b8"))
+	build_hint.position = Vector2(0, 104)
+	build_hint.size = Vector2(346, 44)
+	build_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	drawer_content.add_child(build_hint)
+
+	var info_lbl := _label("AMENITIES", 11, Color("#cbd5e1"), true)
 	info_lbl.position = Vector2(0, 0)
+	info_lbl.position = Vector2(0, 154)
 	drawer_content.add_child(info_lbl)
 
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(0, 26)
-	scroll.size = Vector2(346, 442)
+	scroll.position = Vector2(0, 180)
+	scroll.size = Vector2(346, 288)
 	drawer_content.add_child(scroll)
 
 	var vbox := VBoxContainer.new()
@@ -2601,6 +3363,7 @@ func _render_architect_drawer() -> void:
 
 func _select_amenity_for_placement(amen_type: String, amen_name: String) -> void:
 	selected_place_amenity = amen_type
+	selected_build_tool = ""
 	_add_event("Amenity Placement Active", "Click on any concourse tile to construct %s." % amen_name, "info")
 	sound_mgr.play_click()
 
@@ -2910,7 +3673,7 @@ func _set_sim_speed(speed: float) -> void:
 
 func _toggle_sound() -> void:
 	var enabled: bool = sound_mgr.toggle_sound()
-	sound_btn.text = "🔊 SOUND" if enabled else "🔇 MUTED"
+	sound_btn.text = "🔊" if enabled else "🔇"
 	sound_btn.modulate = Color.WHITE if enabled else Color("#94a3b8")
 
 # ==============================================================================
@@ -2956,6 +3719,16 @@ func _backup_save_path(slot_id := -1) -> String:
 
 func _slot_save_path(slot_id: int) -> String:
 	return "%s%d.json" % [SAVE_SLOT_PREFIX, slot_id]
+
+func _slot_label(slot_id: int) -> String:
+	if FileAccess.file_exists(_slot_save_path(slot_id)):
+		var file := FileAccess.open(_slot_save_path(slot_id), FileAccess.READ)
+		if file != null:
+			var payload = JSON.parse_string(file.get_as_text())
+			if payload is Dictionary:
+				return "W%d" % int(payload.get("week", 1))
+		return "Saved"
+	return "Empty"
 
 func _has_any_save() -> bool:
 	if FileAccess.file_exists(SAVE_PATH):
@@ -3017,6 +3790,9 @@ func _save_game(quiet := false) -> void:
 		"selected_store_idx": selected_store_idx,
 		"stores": store_state,
 		"amenities": placed_amenities,
+		"custom_corridors": custom_corridors,
+		"build_commands": build_commands,
+		"build_redo_commands": build_redo_commands,
 		"weekly_reports": weekly_reports,
 		"shopper_thoughts": shopper_thoughts,
 		"heatmap_mode": heatmap_mode,
@@ -3032,6 +3808,7 @@ func _save_game(quiet := false) -> void:
 		"active_save_slot": active_save_slot,
 		"selected_scenario_index": selected_scenario_index,
 		"autosave_enabled": autosave_enabled,
+		"tutorial_guidance_enabled": tutorial_guidance_enabled,
 		"first_objective_step": first_objective_step,
 		"tycoon_metrics": tycoon_metrics
 	}
@@ -3084,6 +3861,23 @@ func _load_game() -> bool:
 			stores[i].economy = saved.economy
 
 	weekly_reports.clear()
+	custom_corridors.clear()
+	build_commands.clear()
+	build_redo_commands.clear()
+	blueprint = _load_json("res://data/aurora_grand.json")
+	var saved_corridors: Array = payload.get("custom_corridors", [])
+	for corridor in saved_corridors:
+		if corridor is Dictionary:
+			custom_corridors.append(corridor)
+			_add_corridor_to_blueprint(corridor)
+	var saved_commands: Array = payload.get("build_commands", [])
+	for command in saved_commands:
+		if command is Dictionary:
+			build_commands.append(command)
+	var saved_redo: Array = payload.get("build_redo_commands", [])
+	for command in saved_redo:
+		if command is Dictionary:
+			build_redo_commands.append(command)
 	var saved_reports: Array = payload.get("weekly_reports", [])
 	for report in saved_reports:
 		if report is Dictionary:
@@ -3128,6 +3922,7 @@ func _load_game() -> bool:
 	mobile_shopper_budget = int(payload.get("mobile_shopper_budget", mobile_shopper_budget))
 	selected_scenario_index = int(payload.get("selected_scenario_index", selected_scenario_index))
 	autosave_enabled = bool(payload.get("autosave_enabled", autosave_enabled))
+	tutorial_guidance_enabled = bool(payload.get("tutorial_guidance_enabled", tutorial_guidance_enabled))
 	first_objective_step = str(payload.get("first_objective_step", "freeplay"))
 	if payload.get("tycoon_metrics", {}) is Dictionary:
 		tycoon_metrics = payload.get("tycoon_metrics", {})
@@ -3204,6 +3999,12 @@ func _state_color(state: String) -> Color:
 			return Color("#fb7185")
 		_:
 			return Color("#cbd5e1")
+
+func _safe_ui_margin(viewport_size: Vector2) -> float:
+	var aspect := viewport_size.x / maxf(1.0, viewport_size.y)
+	if viewport_size.x < 900.0 or aspect < 1.35:
+		return 24.0
+	return 14.0
 
 func _panel(at: Vector2, panel_size: Vector2, color: Color) -> Panel:
 	var panel := Panel.new()

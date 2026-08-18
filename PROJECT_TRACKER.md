@@ -109,19 +109,20 @@ This is the only active plan. Work from the first incomplete phase unless the us
 
 ### Phase A: New Game, First Ten Minutes & UI Triage
 
-- **2026-08-17 progress**: Added the Phase A launch shell with New Game, Continue, scenario selection, settings toggles, and save-slot selection; stopped unconditional save auto-load; added slot saves with backup files and weekly autosave; added a clean Starter Wing new-game state with curated open stores plus visible vacant units; fixed Continue visual rebuilding after save load; added an event-driven first objective chain with an owner card and a world-space guidance marker; and made the top/drawer/bottom HUD reflow from the current viewport with shorter mode labels. Next Phase A work should finish a proper Scenarios/Settings screen, save-slot management UI, richer objective completion UI, skip/replay tutorial controls, and deeper mobile safe-area polish.
-- [ ] Add a launch flow with **New Game**, **Continue**, **Scenarios**, and **Settings**. Never auto-load a save without player intent.
-- [ ] Add versioned save slots, an explicit fresh-start path, autosave, and a recoverable backup save.
-- [ ] Start New Game paused in a healthy small mall with a controlled budget, a few open stores, clear vacant lots, and no immediate failure cascade.
-- [ ] Build a guided first objective chain: inspect entrance traffic → lease a tenant → open/store observe → fix one stock or staffing issue → collect first weekly result.
-- [ ] Replace tutorial toasts with contextual callouts anchored to the relevant world object or control; allow skip/replay.
+- **2026-08-17 progress**: Added the Phase A launch shell with New Game, Continue, scenario selection, settings toggles, and save-slot selection; stopped unconditional save auto-load; added slot saves with backup files and weekly autosave; added a clean Starter Wing new-game state with curated open stores plus visible vacant units; fixed Continue visual rebuilding after save load; added an event-driven first objective chain with an owner card and a world-space guidance marker; made the top/drawer/bottom HUD reflow from the current viewport with shorter mode labels; added slot status labels plus restore-backup/clear-slot controls with confirmation prompts; added hide/replay controls for owner guidance; added a first-week milestone overlay; split the launcher into Overview/Scenarios/Settings/Saves subviews; and added a first compact safe-margin pass for iOS-shaped screens. Phase A still needs human playtest proof against the owner gate.
+- [x] Add a launch flow with **New Game**, **Continue**, **Scenarios**, and **Settings**. Never auto-load a save without player intent.
+- [x] Add versioned save slots, an explicit fresh-start path, autosave, and a recoverable backup save.
+- [x] Start New Game paused in a healthy small mall with a controlled budget, a few open stores, clear vacant lots, and no immediate failure cascade.
+- [x] Build a guided first objective chain: inspect entrance traffic → lease a tenant → open/store observe → fix one stock or staffing issue → collect first weekly result.
+- [x] Replace tutorial toasts with contextual callouts anchored to the relevant world object or control; allow skip/replay.
 - [ ] Triage the HUD into three layers: always-visible essentials, contextual selected-object actions, and optional management modes. Collapse or hide the drawer when nothing is selected.
-- [ ] Add a clear current objective card and one recommended next action without removing sandbox freedom.
+- [x] Add a clear current objective card and one recommended next action without removing sandbox freedom.
 - [ ] Make UI layout responsive to safe areas, window aspect ratio, and iPhone/iPad touch sizes instead of relying on fixed 1280×720 coordinates.
 - **Owner gate**: Five first-time testers can reach the first positive weekly result in under 10 minutes without verbal help, and at least four can explain why their result changed.
 
 ### Phase B: Mall Creation & Expansion As The Core Fantasy
 
+- **2026-08-17 progress**: Started the command-based build foundation. Architect mode now exposes hallway placement and player-built hallway demolition with tap-to-preview, explicit confirm/cancel, undo, redo, and a small history readout; hallway tiles snap to the site grid, cost cash on confirm, validate against store lots and existing concourse connection, create visible player-built concourse, update walkable corridor data, and save/load through custom corridor plus build-command serialization. Replaced the packed flagship template with Aurora Starter Promenade: a smaller expandable mall start with open east/north/south growth edges, visible expansion zones, authored “build first hallway here” ports, corridor-driven décor, and an atrium fountain tied to blueprint data. Next Phase B work should add entrance placement, lot zoning/resizing, and route validation that proves shoppers use arbitrary player-built hallways.
 - [ ] Create a command-based build system with selection, placement preview, confirm/cancel, undo/redo, demolition, and a transaction history.
 - [ ] Let players draw and edit hallway tiles/segments, connect courts, zone/rescale store lots, and place designated mall entrances/exits.
 - [ ] Validate every edit: entrances connect to corridors, stores expose a public door to a corridor, agents never route through lots, and required paths cannot be demolished.
@@ -242,10 +243,10 @@ This is the only active plan. Work from the first incomplete phase unless the us
 ## 6. Session Handoff
 
 - **Last active branch**: `main`
-- **Last known status**: Phase A is partially implemented in the native Godot build. The game now has player-intent launch flow, New Game/Continue, scenario selection, settings toggles, save-slot selection, slot backups, weekly autosave, a clean Starter Wing start, objective guidance, a world-space guidance marker, entrance traffic visibility, and initial responsive HUD reflow.
+- **Last known status**: Phase A is partially implemented in the native Godot build. The game now has player-intent launch flow, New Game/Continue, scenario selection, settings toggles, save-slot selection, slot backups, confirmed backup restore/clear controls, weekly autosave, a clean Starter Wing start, objective guidance with hide/replay, a world-space guidance marker, entrance traffic visibility, first-week milestone overlay, and initial responsive HUD reflow.
 - **Most recently completed phase/task**: Phase A implementation slice: launch flow, starter new-game state, save slots/backups, objective chain, and initial HUD triage.
-- **Known partial work**: Scenarios/settings are present in the launch shell but not yet full subviews; save slots lack rename/delete/restore UI; objective completion lacks a polished reward panel; tutorial skip/replay controls are not built; HUD safe-area behavior needs iPhone/iPad pass; economy contradictions, generic stores, amenities-only architect mode, auto-resolving incidents, and generic characters remain for later phases.
-- **Recommended next task**: Finish the remaining Phase A polish: proper Scenarios/Settings subviews, save-slot management UI, richer objective completion UI, skip/replay tutorial controls, and mobile safe-area polish.
+- **Known partial work**: Scenarios/settings are present in the launch shell but not yet full subviews; save slots still lack rename UI; HUD safe-area behavior needs iPhone/iPad pass; economy contradictions, generic stores, amenities-only architect mode, auto-resolving incidents, and generic characters remain for later phases.
+- **Recommended next task**: Finish the remaining Phase A polish: proper Scenarios/Settings subviews and mobile safe-area polish.
 - **Verification command to run next**:
   ```bash
   /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --log-file /private/tmp/aurora-alpha-phase-a.log --editor --quit
