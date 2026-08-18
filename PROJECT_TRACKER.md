@@ -330,12 +330,15 @@ Agents must take the first incomplete milestone whose dependencies are complete.
 - **Verification:** `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_save_codec.gd` passed.
 - **Next:** B2-04.
 
-###### B2-04 — Orthogonal Corridor Rasterizer and Graph `[ ]`
+###### B2-04 — Orthogonal Corridor Rasterizer and Graph `[complete 2026-08-17]`
 
 - **Depends on:** B2-02 and B2-03.
 - **Scope:** centerline segments, widths, endpoint snapping, corners, T/cross junctions, occupied cells, public-surface polygons, and reachability graph.
 - **Acceptance:** straight/L/T/cross fixtures connect exactly; a 0.1 m visual gap cannot change graph state; overlapping runs merge deterministically; state hashes are order-independent.
 - **Performance target:** rebuild a 250-segment test mall graph and occupancy in under 20 ms on desktop development hardware before incremental optimization.
+- **Completed evidence:** added pure `layout_rasterizer.gd` and `layout_graph.gd` for orthogonal centerline corridors, width rasterization, court cells, occupied-cell maps, graph adjacency, connected components, cell reachability, and deterministic graph hashes. The graph path uses lightweight rasterization while richer per-cell source metadata remains available for later validators/renderers.
+- **Verification:** `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_rasterizer_graph.gd` passed, including the 250-segment warm rebuild budget.
+- **Next:** B2-05.
 
 ###### B2-05 — Layout Validator and Command Preflight `[ ]`
 
@@ -536,15 +539,16 @@ If a milestone cannot finish in one quota window, split only by its listed deliv
 ## 6. Session Handoff
 
 - **Last active branch**: `main`
-- **Last known status**: Phase A remains partially implemented and playable. Owner priority has moved to Project B2, Mall Layout Builder 2.0. B2 now has completed schema fixtures, pure authoritative layout state, coordinate conversion, state hashing, and a standalone v3 save codec with legacy v2 migration tests. The rasterizer/graph, renderer, mobile builder UI, navigation replacement, and Cedar Grove vertical slice have not started. The current 6×6 hallway builder and Aurora Starter Promenade remain a prototype compatibility path, not an architecture to extend.
-- **Most recently completed phase/task**: B2-03 — added standalone schema v3 parse/serialize and conservative legacy v2 migration tests without changing production save/load or `main.gd`.
+- **Last known status**: Phase A remains partially implemented and playable. Owner priority has moved to Project B2, Mall Layout Builder 2.0. B2 now has completed schema fixtures, pure authoritative layout state, coordinate conversion, state hashing, standalone v3 save codec, conservative legacy v2 migration tests, and an orthogonal corridor rasterizer/graph. The command validator, renderer, mobile builder UI, navigation replacement, and Cedar Grove vertical slice have not started. The current 6×6 hallway builder and Aurora Starter Promenade remain a prototype compatibility path, not an architecture to extend.
+- **Most recently completed phase/task**: B2-04 — added pure rasterization and graph connectivity for orthogonal hallways/courts, including disconnected-run, T-junction, deterministic-overlap, and 250-segment performance tests.
 - **Known partial work**: The prototype still permits “near enough” rectangle connections, infers store frontage from map position, uses isolated tap-to-place tiles, and lacks authoritative graph/nav validation. These are documented replacement targets. Unrelated Phase A safe-area/HUD polish remains incomplete but is not the next owner priority.
-- **Recommended next task**: B2-04 — implement the orthogonal corridor rasterizer and reachability graph for centerline segments, widths, endpoint snapping, corners, T/cross junctions, occupied cells, public-surface polygons, and deterministic graph connectivity.
+- **Recommended next task**: B2-05 — implement layout validator and command preflight for the twelve B2 invariants, structured blocker/warning error codes, affected-object lists, and no-mutation failed command behavior.
 - **Verification command to run next**:
   ```bash
   /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_schema.gd
   /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_state.gd
   /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_save_codec.gd
+  /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_rasterizer_graph.gd
   ```
 
 B2 milestone: B2-01
@@ -579,6 +583,17 @@ Touch resolutions tested: none; no touch UI changed.
 Known limitations (facts, not future ideas): migration does not yet integrate with business saves, write upgraded files, create backups, or prove full economy/store stat preservation; those require production save integration after topology and validation mature.
 First incomplete acceptance item: B2-04 orthogonal corridor rasterizer and graph has not started.
 Recommended next task ID: B2-04
+
+B2 milestone: B2-04
+Status: complete
+Files changed: `godot/scripts/layout/layout_rasterizer.gd`, `godot/scripts/layout/layout_graph.gd`, `godot/tests/layout/test_layout_rasterizer_graph.gd`, `PROJECT_TRACKER.md`
+Schema/save version impact: no schema or production save changes; consumes B2-02 state and B2-03 codec outputs.
+Tests added and exact command: `godot/tests/layout/test_layout_rasterizer_graph.gd`; run with `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_rasterizer_graph.gd`
+Godot preview command and result: not launched; B2-04 is non-visual topology infrastructure with no gameplay scene change.
+Touch resolutions tested: none; no touch UI changed.
+Known limitations (facts, not future ideas): only orthogonal centerline corridors and convex/simple courts are supported; 45-degree/curve handling, full invariant validation, command preflight, and Godot navigation surfaces are not implemented.
+First incomplete acceptance item: B2-05 layout validator and command preflight has not started.
+Recommended next task ID: B2-05
 
 ---
 
