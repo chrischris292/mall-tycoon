@@ -4,6 +4,21 @@ This document tracks the end-to-end migration, architecture, and feature evoluti
 
 Future AI agents and developers should read and update this file as new features and iterations are implemented.
 
+### Resumable AI Development Protocol
+
+This project is expected to evolve over many Codex sessions and quota windows. Every AI/developer session should follow this protocol before implementing:
+
+1. Read this tracker first, especially Sections 5, 6, and 8.
+2. Check `git status --short --branch` and avoid overwriting uncommitted work.
+3. Pick the first incomplete task from the **Active Multi-Day Implementation Plan** unless the user gives a newer priority.
+4. Implement one coherent vertical slice at a time: data model, simulation behavior, UI affordance, save/load, and visual feedback where applicable.
+5. Before stopping, update this tracker with completed tasks, current branch/commit if committed, known partial work, and the recommended next task.
+6. Verify in proportion to the change. For Godot work, at minimum run a headless parse/editor quit when possible:
+   ```bash
+   /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --editor --quit
+   ```
+7. Keep the native Godot project as the primary game. The React/Vite prototype remains a reference for product ideas and parity checks.
+
 ---
 
 ## 1. Project Vision & Targets
@@ -118,11 +133,152 @@ mall-tycoon/
   - Mall strategic difficulty: Tenant clustering synergy, duplicate cannibalization penalties (-30%), Mega Anchor foot-traffic halo (+25%), scalable anchor utility rent, and staff payroll burn.
   - Multi-tier store sizing: Mega Anchors (13.5×9.0), Flagships (8.5×6.5), Standard (7.5×6.0), Boutiques/Kiosks (5.2×5.0).
   - Dual-lane atrium fountain avoidance routing (zero water basin clipping) and interactive coin-toss/bench resting.
+- [ ] **Milestone 9: Real Tycoon Economy & Tenant Relationships**
+  - Add lease contracts with base rent, revenue share, term length, renewal date, rent burden, and tenant satisfaction.
+  - Model tenant lifecycle states: prospect, open, trending, struggling, at-risk, closing, replaced.
+  - Implement lease negotiation decisions: renew, raise rent, subsidize renovation, replace tenant, or leave vacant.
+  - Add weekly tenant statements that explain why each store is winning or failing.
+- [ ] **Milestone 10: Shopper Demand, Thoughts & Heatmaps**
+  - Expand shopper needs beyond one store visit: hunger, entertainment, comfort, budget, patience, restroom need, and destination intent.
+  - Add visible guest thoughts and complaints inspired by RollerCoaster Tycoon and Parkitect.
+  - Build diagnostic overlays for foot traffic, spend, satisfaction, cleanliness, security, queues, and dead zones.
+  - Feed shopper behavior back into store revenue, tenant satisfaction, reputation, and layout evaluation.
+- [ ] **Milestone 11: Mall Design Strategy**
+  - Make architecture financially meaningful through anchor halos, dead-zone penalties, wing identity, and escalator/elevator traffic routing.
+  - Add adjacency combos: cinema + arcade + food court, luxury + jewelry + beauty, family dining + toy store, tech + cafe + bookstore.
+  - Add duplicate cannibalization and category saturation so tenant mix becomes a strategic puzzle.
+  - Prepare the data model for multi-floor malls, service corridors, vertical transport, and expansion parcels.
+- [ ] **Milestone 12: Staff, Services & Incidents**
+  - Add visible janitors, security guards, maintenance techs, and concierge staff with routes and coverage zones.
+  - Implement staff fatigue, payroll, response times, and break/service rooms.
+  - Add operational incidents: spills, shoplifting, broken escalators, restroom complaints, overcrowded food court, celebrity crowds.
+  - Add service overlays showing uncovered dirty/unsafe/broken areas.
+- [ ] **Milestone 13: Progression, Campaigns & Scenarios**
+  - Add sandbox, career, and challenge modes.
+  - Create scenario starts such as "revive a dying 90s mall", "luxury wing expansion", "holiday season crunch", and "transit hub opening".
+  - Add prestige tiers: Neighborhood Center -> Regional Mall -> Lifestyle Center -> Destination Mall.
+  - Gate unlocks through reputation, cashflow, scenario goals, tenant relationships, and mall size.
+- [ ] **Milestone 14: Events, Culture & Live Mall Identity**
+  - Add seasonal demand curves: holidays, back-to-school, summer tourism, rainy weekends, tax-refund shopping.
+  - Add events and pop-ups: sneaker drop, anime convention, farmers market, fashion show, influencer meet-and-greet.
+  - Add local competition and external shocks: nearby outlet mall, e-commerce slump, transit station opening, construction disruption.
+  - Add news/review systems that explain reputation shifts and create medium-term player decisions.
+- [ ] **Milestone 15: Mobile-First Productization**
+  - Convert dense desktop HUD patterns into thumb-friendly iOS modes: Build, Lease, Manage, Data, Goals.
+  - Add safe-area handling, readable panel density, scalable tap targets, and modal flows for complex choices.
+  - Add settings, save slots, tutorial onboarding, accessibility pass, and performance budgets for iPhone/iPad.
+  - Prepare export pipeline, signing notes, icon requirements, and App Store compliance checklist.
 
+---
 
+## 6. Active Multi-Day Implementation Plan
 
+This is the current priority plan. It is ordered so future sessions can resume from the first incomplete item. Each phase should leave the game playable.
 
-## 6. Running the Game
+### Phase A: Tycoon Data Backbone
+
+- [ ] Add persistent data structures in `godot/scripts/main.gd` for leases, tenant satisfaction, tenant state, weekly profit/loss, shopper thoughts, and overlay metrics.
+- [ ] Extend `godot/data/catalogs.json` tenant definitions with lease expectations, preferred adjacencies, disliked adjacencies, prestige tier, rent tolerance, and target shopper personalities.
+- [ ] Update save/load to version the new data safely while preserving existing saves.
+- [ ] Add a compact debug/status view in the UI so these values can be inspected while testing.
+- **Done when**: Existing malls load, each store has a lease/economy state, and weekly accounting shows store-level explanations.
+
+### Phase B: Tenant Contracts & Store Lifecycle
+
+- [ ] Add lease contract generation when a store opens or is loaded from a template.
+- [ ] Add weekly tenant satisfaction calculation from traffic, sales, cleanliness, security, adjacency, rent burden, and category saturation.
+- [ ] Add tenant lifecycle transitions: trending, stable, struggling, at-risk.
+- [ ] Add player actions: renew lease, lower rent, renovate tenant, replace tenant, leave vacant.
+- [ ] Add event feed messages for lease warnings and tenant milestones.
+- **Done when**: At least one tenant can become at-risk for understandable reasons, and the player can respond with a meaningful economic tradeoff.
+
+### Phase C: Shopper Needs & Guest Thoughts
+
+- [ ] Expand `godot/scripts/shopper.gd` with needs: hunger, comfort, patience, budget, restroom, entertainment, and destination intent.
+- [ ] Add personality-specific behavior: Luxury VIPs value prestige and cleanliness, Bargain Hunters dislike premium pricing, Trendsetters chase new/trending stores, Families need food/restrooms/seating, Casual Strollers browse and use amenities.
+- [ ] Add thought bubbles and event snippets that state the reason behind satisfaction changes.
+- [ ] Feed unmet needs into reputation, dwell time, spend probability, and store ratings.
+- **Done when**: Watching shoppers provides actionable clues about mall layout, tenant mix, pricing, and operations.
+
+### Phase D: Heatmaps & Diagnostics
+
+- [ ] Track grid/corridor samples for foot traffic, spend, cleanliness, safety, wait time, and dead-zone score.
+- [ ] Add a Data drawer with overlay toggles.
+- [ ] Render simple colored floor overlays in Godot without overwhelming mobile performance.
+- [ ] Add summary callouts: "dead wing", "food demand unmet", "security coverage weak", "luxury cluster working".
+- **Done when**: The player can diagnose why a store is failing without reading raw numbers.
+
+### Phase E: Strategic Layout Rules
+
+- [ ] Implement anchor halo traffic bonuses and distance falloff.
+- [ ] Implement adjacency combo bonuses and duplicate/category saturation penalties.
+- [ ] Apply layout scoring to shopper routing, store draw, tenant satisfaction, and lease renewal chances.
+- [ ] Add UI hints in the Architect/Lease panels showing nearby synergy and cannibalization before placement.
+- **Done when**: Moving or replacing stores can visibly change traffic and weekly profit.
+
+### Phase F: Staff & Incidents
+
+- [ ] Add staff units for janitors, security, maintenance, and concierge.
+- [ ] Add route assignment and coverage zones along corridors.
+- [ ] Add incident spawning based on crowd, cleanliness, security, and maintenance pressure.
+- [ ] Add response tasks and consequences if ignored.
+- **Done when**: Operations are spatial and visible, not just buttons that adjust percentages.
+
+### Phase G: Progression & Scenario Layer
+
+- [ ] Define scenario metadata in JSON: starting mall, goals, constraints, unlocks, and win/loss conditions.
+- [ ] Add goal tracker UI and victory/summary panel.
+- [ ] Create at least three scenarios: starter neighborhood mall, revive a dying mall, holiday rush.
+- [ ] Add prestige tiers and unlock rules for tenants, amenities, facade styles, and expansion size.
+- **Done when**: A new player has a guided reason to keep playing for multiple sessions.
+
+### Phase H: iOS Product Pass
+
+- [ ] Replace dense desktop drawers with mode-based mobile UX: Build, Lease, Manage, Data, Goals.
+- [ ] Audit tap target sizes, safe-area behavior, text fit, and camera gestures.
+- [ ] Add tutorial prompts for first build, first lease, first incident, first heatmap, and first weekly report.
+- [ ] Profile scene complexity and shopper count for mobile performance.
+- **Done when**: The game can be demoed as an iPad-first tycoon prototype.
+
+---
+
+## 7. Design Pillars For Future Decisions
+
+Use these pillars to choose between competing implementation options:
+
+1. **Every store is a business relationship.** Tenants should have needs, leverage, expectations, and consequences.
+2. **Every hallway is a traffic decision.** Layout should affect who walks where, who spends, and which stores survive.
+3. **Every shopper is feedback.** The player should learn by watching guests and reading their thoughts, not only by studying tables.
+4. **Every system should be visible.** Cleanliness, safety, popularity, rent stress, and dead zones need clear world/UI feedback.
+5. **Mobile first, deep always.** The game should become complex through layers, not through overwhelming panels.
+
+### Tycoon Reference Lessons
+
+- **RollerCoaster Tycoon / Parkitect**: Guest thoughts, bottlenecks, queues, and path design make management legible and emotionally satisfying.
+- **Two Point Hospital**: Room quality, staff fatigue, incidents, and funny feedback make operational problems entertaining instead of abstract.
+- **Project Highrise / SimTower**: Tenant contracts, rent pressure, vertical expansion, and service infrastructure create long-term planning.
+- **Mega Mall Story**: Store combinations, prestige, tenant mix, and unlocks make malls feel collectible and optimizable.
+- **Cities: Skylines**: Overlays are essential; complex simulations become playable when the player can see the invisible systems.
+
+---
+
+## 8. Session Handoff Template
+
+At the end of any substantial AI session, update this block or append directly below it.
+
+- **Last active branch**: `main`
+- **Last known status**: Roadmap expanded for multi-day tycoon depth planning. Next implementation should begin with Phase A unless the user reprioritizes.
+- **Most recently completed phase/task**: Planning update only.
+- **Known partial work**: None in this tracker update.
+- **Recommended next task**: Implement Phase A data backbone in Godot and verify save/load compatibility.
+- **Verification command to run next**:
+  ```bash
+  /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --editor --quit
+  ```
+
+---
+
+## 9. Running the Game
 
 To launch the native Godot 3D game locally:
 ```bash
@@ -132,4 +288,3 @@ To launch the native Godot 3D game locally:
 ---
 
 *Last Updated: 2026-08-17 — Aurora Mall Tycoon Engineering Team*
-
