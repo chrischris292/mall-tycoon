@@ -14,6 +14,9 @@ const STORE_COLORS := [
 	Color("#38bdf8"), Color("#f97316"), Color("#d8b4fe"), Color("#34d399"),
 	Color("#fb7185"), Color("#facc15"), Color("#a78bfa"), Color("#4ade80")
 ]
+const SAVE_PATH := "user://aurora_save.json"
+const SAVE_SLOT_PREFIX := "user://aurora_save_slot_"
+const STARTER_OPEN_STORES := [0, 1, 5, 6, 12, 13]
 
 # Mall State Variables
 var cash := 28000
@@ -62,6 +65,18 @@ var scenario_complete := false
 var prestige_tier := 1
 var tutorial_seen: Dictionary = {}
 var mobile_shopper_budget := 46
+var session_started := false
+var active_save_slot := 1
+var selected_scenario_index := 0
+var autosave_enabled := true
+var first_objective_step := "inspect_traffic"
+var launch_overlay: Control
+var guidance_panel: Panel
+var guidance_title: Label
+var guidance_body: Label
+var guidance_action: Button
+var guidance_marker: Node3D
+var last_viewport_size := Vector2.ZERO
 
 # Camera & Input state
 var camera_yaw := -18.0
@@ -116,22 +131,21 @@ func _ready() -> void:
 	add_child(incident_root)
 	_build_stores_from_blueprint()
 	_build_entrances()
-	_load_game()
 	_ensure_store_economy_state()
 	_initialize_staff_units()
 	_refresh_heatmap_overlay()
 
 	_build_ui()
 	_update_store_selection_visuals()
-
-	# Spawn opening crowd
-	for index in 12:
-		_spawn_shopper(index % 2 == 0)
-
-	_add_event("Welcome to Aurora Grand", "Operating 3D flagship mall. Manage stores, zone lots, and expand!", "info")
 	_refresh_ui()
+	_show_launch_overlay()
 
 func _process(delta: float) -> void:
+	_rebuild_ui_if_viewport_changed()
+	if not session_started:
+		_update_camera(delta)
+		return
+
 	# 1. Day / Time Progression
 	day_progress += delta
 	if day_progress >= 26.0:
@@ -195,6 +209,7 @@ func _process(delta: float) -> void:
 
 	_process_staff_and_incidents(delta)
 	_update_scenario_goals()
+	_refresh_guidance_card()
 	_update_camera(delta)
 
 # ==============================================================================
@@ -649,6 +664,7 @@ func _spawn_shopper(from_west: bool) -> void:
 	_sample_heatmap_route(route)
 
 	var shopper: Node3D = _spawn_shopper_node()
+	shopper.add_to_group("shoppers")
 
 	add_child(shopper)
 
@@ -718,6 +734,8 @@ func _on_shopper_finished(_entry: String, exit: String, s_index: int, purchased:
 			_add_heatmap_sample(store.position, "satisfaction", rating_shift * 8)
 
 	active_shoppers = maxi(0, active_shoppers - 1)
+	if first_objective_step == "observe_shoppers":
+		_advance_first_objective("fix_issue")
 	_refresh_stats_hud()
 	if current_drawer == "inspector":
 		_render_drawer_content()
@@ -922,6 +940,169 @@ func _pick_weighted_store_index() -> int:
 			candidates.append(i)
 	return candidates[randi() % candidates.size()] if candidates.size() > 0 else 0
 
+func _count_vacant_stores() -> int:
+	var count := 0
+	for s in stores:
+		if str(s.get("tenant_id", "")) == "vacant" or str(s.get("category", "")) == "Vacant":
+			count += 1
+	return count
+
+func _count_open_stores() -> int:
+	return stores.size() - _count_vacant_stores()
+
+func _reset_for_new_game() -> void:
+	for shopper in get_tree().get_nodes_in_group("shoppers"):
+		shopper.queue_free()
+	active_shoppers = 0
+	cash = 30000
+	week = 1
+	day = 1
+	day_progress = 0.0
+	reputation = 72
+	cleanliness = 88
+	security = 84
+	total_sales = 0
+	spawn_cooldown = 1.0
+	current_drawer = "inspector"
+	selected_directory_cat = "All"
+	selected_place_amenity = ""
+	placed_amenities.clear()
+	event_feed.clear()
+	weekly_reports.clear()
+	shopper_thoughts.clear()
+	tycoon_metrics.clear()
+	heatmap_mode = "none"
+	heatmap_cells.clear()
+	staff_units.clear()
+	active_incidents.clear()
+	staff_serial = 0
+	incident_serial = 0
+	active_scenario.clear()
+	completed_goals.clear()
+	scenario_complete = false
+	prestige_tier = 1
+	tutorial_seen.clear()
+	mobile_shopper_budget = 34
+	first_objective_step = "inspect_traffic"
+	_initialize_scenario()
+
+	for i in stores.size():
+		if STARTER_OPEN_STORES.has(i):
+			_reset_store_to_blueprint(i)
+		else:
+			_make_store_vacant(i)
+
+	selected_store_idx = _first_vacant_store_index()
+	_ensure_store_economy_state()
+	_initialize_staff_units()
+	_apply_selected_scenario_start()
+
+func _apply_selected_scenario_start() -> void:
+	match str(active_scenario.get("id", "")):
+		"mall_rescue":
+			cash = 18000
+			reputation = 58
+			cleanliness = 62
+			security = 58
+			mobile_shopper_budget = mini(mobile_shopper_budget, 34)
+			for i in stores.size():
+				if i % 4 == 0 and not STARTER_OPEN_STORES.has(i):
+					_make_store_vacant(i)
+				elif i % 5 == 0 and str(stores[i].get("tenant_id", "")) != "vacant":
+					stores[i].stock = 28.0
+					stores[i].satisfaction = 52
+		"holiday_rush":
+			cash = 36000
+			reputation = 78
+			cleanliness = 82
+			security = 76
+			mobile_shopper_budget = maxi(mobile_shopper_budget, 46)
+			for i in stores.size():
+				if i % 3 == 0:
+					_reset_store_to_blueprint(i)
+		_:
+			pass
+
+func _reset_store_to_blueprint(idx: int) -> void:
+	var defs: Array = blueprint.get("stores", [])
+	if idx < 0 or idx >= stores.size() or idx >= defs.size():
+		return
+	var def: Dictionary = defs[idx]
+	var cat := str(def.get("category", "Fashion"))
+	var tenant_match := _find_tenant_by_category(cat)
+	var store := stores[idx]
+	store.name = str(def.get("name", tenant_match.get("name", "Store")))
+	store.category = cat
+	store.price = "Market"
+	store.staff = int(tenant_match.get("base_staff", 2))
+	store.stock = 100.0
+	store.satisfaction = 92
+	store.promotion = 0.0
+	store.facade = "Neon" if cat == "Entertainment" else "Warm" if cat == "Food" else "Gallery"
+	store.level = 1
+	store.revenue = 0
+	store.served = 0
+	store.base_income = int(tenant_match.get("base_income", 100))
+	store.draw = int(tenant_match.get("draw", 35))
+	store.tenant_id = str(tenant_match.get("id", "generic"))
+	store.color = STORE_COLORS[idx % STORE_COLORS.size()]
+	store.economy = tycoon_economy.create_store_economy(store, tenant_match, week, catalog_data)
+	if cat == "Entertainment":
+		store["cinema_state"] = {"movie": "Interstellar Echoes 4DX", "phase": "box_office", "timer": 20.0}
+	else:
+		store.erase("cinema_state")
+
+func _make_store_vacant(idx: int) -> void:
+	if idx < 0 or idx >= stores.size():
+		return
+	var store := stores[idx]
+	store.name = "Vacant Unit"
+	store.category = "Vacant"
+	store.price = "Market"
+	store.staff = 0
+	store.stock = 0.0
+	store.satisfaction = 60
+	store.promotion = 0.0
+	store.facade = "Gallery"
+	store.level = 1
+	store.revenue = 0
+	store.served = 0
+	store.base_income = 0
+	store.draw = 0
+	store.tenant_id = "vacant"
+	store.color = Color("#64748b")
+	store.erase("cinema_state")
+	store.economy = tycoon_economy.create_store_economy(store, {}, week, catalog_data)
+
+func _first_vacant_store_index() -> int:
+	for i in stores.size():
+		if str(stores[i].get("tenant_id", "")) == "vacant":
+			return i
+	return 0
+
+func _rebuild_world_visual_state() -> void:
+	for shopper in get_tree().get_nodes_in_group("shoppers"):
+		shopper.queue_free()
+	active_shoppers = 0
+	for child in get_children():
+		if child is Node3D and str(child.name).begins_with("Amenity_"):
+			child.queue_free()
+	for i in stores.size():
+		var store := stores[i]
+		var north: bool = float(store.position.z) < 0.0
+		_build_store_model(i, store, north)
+	for i in placed_amenities.size():
+		_build_amenity_model(i, placed_amenities[i])
+	if staff_root != null:
+		_rebuild_staff_nodes()
+	if incident_root != null:
+		for child in incident_root.get_children():
+			child.queue_free()
+		for incident in active_incidents:
+			_build_incident_node(incident)
+	_refresh_heatmap_overlay()
+	_update_store_selection_visuals()
+
 # ==============================================================================
 # OPERATIONS, HEALTH FINES, SHOPLIFTING & WEEKLY ACCOUNTING
 # ==============================================================================
@@ -969,7 +1150,9 @@ func _process_weekly_accounting() -> void:
 	for report in weekly_reports.slice(0, mini(weekly_reports.size(), 3)):
 		if str(report.get("state", "")) == "at-risk":
 			_add_event("Tenant At Risk", str(report.get("statement", "")), "warning")
-	_save_game()
+	if first_objective_step == "weekly_result":
+		_advance_first_objective("freeplay")
+	_autosave_game()
 	_refresh_stats_hud()
 
 func _trigger_health_inspection_penalty() -> void:
@@ -1015,6 +1198,8 @@ func _perform_mall_action(action: String) -> void:
 			cleanliness = mini(100, cleanliness + 25)
 			sound_mgr.play_place()
 			_add_event("Concourse Buffing Crew", "Floors polished to a sparkling shine. Cleanliness +25%", "success")
+			if first_objective_step == "fix_issue":
+				_advance_first_objective("weekly_result")
 		"security":
 			if cash < 350:
 				sound_mgr.play_error()
@@ -1023,6 +1208,8 @@ func _perform_mall_action(action: String) -> void:
 			security = mini(100, security + 20)
 			sound_mgr.play_place()
 			_add_event("Security Patrols Deployed", "Concourse patrols reinforced across all wings. Security +20%", "success")
+			if first_objective_step == "fix_issue":
+				_advance_first_objective("weekly_result")
 		"campaign":
 			if cash < 600:
 				sound_mgr.play_error()
@@ -1396,6 +1583,8 @@ func _change_store_staff(delta: int) -> void:
 		sound_mgr.play_error()
 		return
 	_save_game()
+	if first_objective_step == "fix_issue":
+		_advance_first_objective("weekly_result")
 	_refresh_stats_hud()
 	_render_drawer_content()
 
@@ -1408,6 +1597,8 @@ func _restock_store() -> void:
 	sound_mgr.play_place()
 	_add_event("Inventory Restocked", "%s received full replenishment." % stores[selected_store_idx].name, "success")
 	_save_game()
+	if first_objective_step == "fix_issue":
+		_advance_first_objective("weekly_result")
 	_refresh_stats_hud()
 	_render_drawer_content()
 
@@ -1475,6 +1666,8 @@ func _lease_tenant_into_store(tenant: Dictionary) -> void:
 	_add_event("New Tenant Leased", "%s opened in %s!" % [s.name, s.category], "success")
 
 	_save_game()
+	if first_objective_step == "lease_tenant":
+		_advance_first_objective("observe_shoppers")
 	_refresh_stats_hud()
 	_open_drawer("inspector")
 
@@ -1685,9 +1878,19 @@ func _build_ui() -> void:
 	ui_root = $UI
 	for child in ui_root.get_children():
 		child.queue_free()
+	var viewport_size := get_viewport().get_visible_rect().size
+	last_viewport_size = viewport_size
+	var screen_w := maxf(960.0, viewport_size.x)
+	var screen_h := maxf(600.0, viewport_size.y)
+	var margin := 14.0
+	var top_w := screen_w - margin * 2.0
+	var drawer_w := 386.0
+	var drawer_h := clampf(screen_h - 178.0, 390.0, 542.0)
+	var drawer_x := screen_w - drawer_w - margin
+	var nav_y := screen_h - 78.0
 
 	# 1. Top Bar
-	var top := _panel(Vector2(14, 12), Vector2(1252, 64), Color(0.04, 0.06, 0.1, 0.94))
+	var top := _panel(Vector2(margin, 12), Vector2(top_w, 64), Color(0.04, 0.06, 0.1, 0.94))
 	ui_root.add_child(top)
 
 	var brand_logo := _label("AURORA", 20, Color("#ffffff"), true)
@@ -1740,28 +1943,32 @@ func _build_ui() -> void:
 	sound_btn.pressed.connect(_toggle_sound)
 	top.add_child(sound_btn)
 
-	var save_btn := _button("💾 SAVE", Vector2(972, 12), Vector2(78, 38))
+	var save_btn := _button("💾 SAVE", Vector2(top_w - 202, 12), Vector2(78, 38))
 	save_btn.pressed.connect(_save_game)
 	top.add_child(save_btn)
 
+	var menu_btn := _button("MENU", Vector2(top_w - 116, 12), Vector2(70, 38))
+	menu_btn.pressed.connect(_show_launch_overlay)
+	top.add_child(menu_btn)
+
 	# 2. Bottom Drawer Navigation Bar
-	var nav_bar := _panel(Vector2(14, 642), Vector2(1252, 66), Color(0.04, 0.06, 0.1, 0.96))
+	var nav_bar := _panel(Vector2(margin, nav_y), Vector2(top_w, 66), Color(0.04, 0.06, 0.1, 0.96))
 	ui_root.add_child(nav_bar)
 
 	var nav_hbox := HBoxContainer.new()
 	nav_hbox.position = Vector2(14, 10)
-	nav_hbox.size = Vector2(1224, 46)
+	nav_hbox.size = Vector2(top_w - 28.0, 46)
 	nav_hbox.add_theme_constant_override("separation", 10)
 	nav_bar.add_child(nav_hbox)
 
 	var tabs := [
-		{"id": "inspector", "label": "🏪 STORE INSPECTOR"},
-		{"id": "directory", "label": "📋 LEASING DIRECTORY"},
-		{"id": "architect", "label": "📐 ARCHITECT & AMENITIES"},
-		{"id": "ops", "label": "⚙️ OPERATIONS & HEALTH"},
-		{"id": "data", "label": "📊 TYCOON DATA"},
-		{"id": "goals", "label": "🏆 GOALS"},
-		{"id": "feed", "label": "📜 EVENTS FEED"}
+		{"id": "inspector", "label": "STORE"},
+		{"id": "directory", "label": "LEASE"},
+		{"id": "architect", "label": "BUILD"},
+		{"id": "ops", "label": "OPS"},
+		{"id": "data", "label": "DATA"},
+		{"id": "goals", "label": "GOALS"},
+		{"id": "feed", "label": "FEED"}
 	]
 
 	for tab in tabs:
@@ -1771,7 +1978,7 @@ func _build_ui() -> void:
 		nav_hbox.add_child(btn)
 
 	# 3. Interactive Main Side Drawer Panel
-	drawer_panel = _panel(Vector2(880, 88), Vector2(386, 542), Color(0.03, 0.05, 0.09, 0.96))
+	drawer_panel = _panel(Vector2(drawer_x, 88), Vector2(drawer_w, drawer_h), Color(0.03, 0.05, 0.09, 0.96))
 	ui_root.add_child(drawer_panel)
 
 	drawer_title = _label("STORE OPERATIONS", 16, Color("#38bdf8"), true)
@@ -1780,7 +1987,7 @@ func _build_ui() -> void:
 
 	drawer_content = Control.new()
 	drawer_content.position = Vector2(20, 48)
-	drawer_content.size = Vector2(346, 474)
+	drawer_content.size = Vector2(346, drawer_h - 68.0)
 	drawer_panel.add_child(drawer_content)
 
 	# 4. Toast Alerts Container
@@ -1790,7 +1997,342 @@ func _build_ui() -> void:
 	toast_container.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	ui_root.add_child(toast_container)
 
+	_build_guidance_panel()
+
 	_render_drawer_content()
+
+func _rebuild_ui_if_viewport_changed() -> void:
+	if ui_root == null:
+		return
+	var viewport_size := get_viewport().get_visible_rect().size
+	if viewport_size.distance_to(last_viewport_size) < 1.0:
+		return
+	var had_launch := launch_overlay != null
+	_build_ui()
+	_update_store_selection_visuals()
+	_refresh_stats_hud()
+	if had_launch:
+		_show_launch_overlay()
+
+func _show_launch_overlay() -> void:
+	if ui_root == null:
+		return
+	session_started = false
+	Engine.time_scale = 0.0
+	if launch_overlay != null:
+		launch_overlay.queue_free()
+
+	launch_overlay = Control.new()
+	launch_overlay.name = "LaunchOverlay"
+	launch_overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	launch_overlay.mouse_filter = Control.MOUSE_FILTER_STOP
+	ui_root.add_child(launch_overlay)
+
+	var scrim := ColorRect.new()
+	scrim.color = Color(0.01, 0.015, 0.025, 0.78)
+	scrim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	launch_overlay.add_child(scrim)
+
+	var card := _panel(Vector2(92, 82), Vector2(430, 492), Color(0.025, 0.04, 0.075, 0.97))
+	launch_overlay.add_child(card)
+
+	var eyebrow := _label("AURORA MALL TYCOON", 11, Color("#38bdf8"), true)
+	eyebrow.position = Vector2(28, 26)
+	card.add_child(eyebrow)
+
+	var title := _label("Build a mall people actually use.", 28, Color("#ffffff"), true)
+	title.position = Vector2(28, 54)
+	title.size = Vector2(370, 78)
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	card.add_child(title)
+
+	var desc := _label("Lease empty units, watch shoppers move through real entrances, tune operations, and grow from a starter wing into a destination.", 12, Color("#cbd5e1"))
+	desc.position = Vector2(28, 142)
+	desc.size = Vector2(370, 70)
+	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	card.add_child(desc)
+
+	var continue_btn := _button("Continue Saved Mall", Vector2(28, 238), Vector2(374, 46))
+	continue_btn.disabled = not _has_any_save()
+	continue_btn.pressed.connect(_continue_saved_game)
+	card.add_child(continue_btn)
+
+	var new_btn := _button("New Game: Starter Wing", Vector2(28, 294), Vector2(374, 50))
+	new_btn.pressed.connect(_start_new_game)
+	card.add_child(new_btn)
+
+	var goals := _label("First session goals:\n- Lease one vacant unit\n- Watch your first shoppers arrive\n- Finish Week 1 with a readable result", 11, Color("#94a3b8"))
+	goals.position = Vector2(28, 366)
+	goals.size = Vector2(374, 88)
+	card.add_child(goals)
+
+	var note := _label("Your existing save remains available until this session is saved.", 9, Color("#64748b"))
+	note.position = Vector2(28, 458)
+	card.add_child(note)
+
+	var side := _panel(Vector2(548, 82), Vector2(368, 492), Color(0.025, 0.04, 0.075, 0.94))
+	launch_overlay.add_child(side)
+
+	var scenario_title := _label("SCENARIOS", 11, Color("#38bdf8"), true)
+	scenario_title.position = Vector2(24, 24)
+	side.add_child(scenario_title)
+
+	var y := 54
+	for i in scenarios_catalog.size():
+		var scenario: Dictionary = scenarios_catalog[i]
+		var row := _button(str(scenario.get("name", "Scenario")), Vector2(24, y), Vector2(320, 34))
+		if i == selected_scenario_index:
+			row.modulate = Color("#38bdf8")
+		row.pressed.connect(_select_launch_scenario.bind(i))
+		side.add_child(row)
+		var desc_line := _label(str(scenario.get("description", "")), 9, Color("#94a3b8"))
+		desc_line.position = Vector2(28, y + 36)
+		desc_line.size = Vector2(312, 28)
+		desc_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		side.add_child(desc_line)
+		y += 74
+
+	var start_scenario_btn := _button("Start Selected Scenario", Vector2(24, 284), Vector2(320, 42))
+	start_scenario_btn.pressed.connect(_start_selected_scenario)
+	side.add_child(start_scenario_btn)
+
+	var settings_title := _label("SETTINGS", 11, Color("#38bdf8"), true)
+	settings_title.position = Vector2(24, 352)
+	side.add_child(settings_title)
+
+	var autosave_btn := _button("Autosave: %s" % ("On" if autosave_enabled else "Off"), Vector2(24, 382), Vector2(152, 34))
+	autosave_btn.pressed.connect(_toggle_autosave_from_launch)
+	side.add_child(autosave_btn)
+
+	var budget_btn := _button("Crowd Budget: %d" % mobile_shopper_budget, Vector2(192, 382), Vector2(152, 34))
+	budget_btn.pressed.connect(_cycle_mobile_budget_from_launch)
+	side.add_child(budget_btn)
+
+	var slot_title := _label("SAVE SLOT", 11, Color("#38bdf8"), true)
+	slot_title.position = Vector2(24, 432)
+	side.add_child(slot_title)
+	for slot in 3:
+		var slot_id := slot + 1
+		var slot_btn := _button("%d%s" % [slot_id, " *" if slot_id == active_save_slot else ""], Vector2(24 + slot * 108, 456), Vector2(94, 28))
+		slot_btn.pressed.connect(_set_active_save_slot.bind(slot_id))
+		side.add_child(slot_btn)
+
+func _continue_saved_game() -> void:
+	if not _load_game():
+		sound_mgr.play_error()
+		return
+	_rebuild_world_visual_state()
+	_start_session("Welcome Back", "Continue your saved mall from Week %d, Day %d." % [week, day])
+
+func _start_new_game() -> void:
+	_reset_for_new_game()
+	_rebuild_world_visual_state()
+	_start_session("New Mall Opened", "Starter Wing is live. Your first job: turn vacancy into foot traffic.", false)
+
+func _select_launch_scenario(index: int) -> void:
+	selected_scenario_index = clampi(index, 0, maxi(0, scenarios_catalog.size() - 1))
+	sound_mgr.play_click()
+	_show_launch_overlay()
+
+func _start_selected_scenario() -> void:
+	_reset_for_new_game()
+	if scenarios_catalog.size() > 0:
+		active_scenario = scenarios_catalog[clampi(selected_scenario_index, 0, scenarios_catalog.size() - 1)]
+		completed_goals.clear()
+		scenario_complete = false
+	_apply_selected_scenario_start()
+	_rebuild_world_visual_state()
+	_start_session(str(active_scenario.get("name", "Scenario")), str(active_scenario.get("description", "Build a stronger mall.")), false)
+
+func _toggle_autosave_from_launch() -> void:
+	autosave_enabled = not autosave_enabled
+	sound_mgr.play_click()
+	_show_launch_overlay()
+
+func _cycle_mobile_budget_from_launch() -> void:
+	var budgets := [24, 34, 46, 60]
+	var index := budgets.find(mobile_shopper_budget)
+	mobile_shopper_budget = budgets[(index + 1) % budgets.size()] if index >= 0 else 34
+	sound_mgr.play_click()
+	_show_launch_overlay()
+
+func _set_active_save_slot(slot_id: int) -> void:
+	active_save_slot = clampi(slot_id, 1, 3)
+	sound_mgr.play_click()
+	_show_launch_overlay()
+
+func _start_session(title: String, desc: String, spawn_opening_crowd := true) -> void:
+	if launch_overlay != null:
+		launch_overlay.queue_free()
+		launch_overlay = null
+	session_started = true
+	Engine.time_scale = 1.0
+	if spawn_opening_crowd:
+		for index in 12:
+			_spawn_shopper(index % 2 == 0)
+	else:
+		for index in 6:
+			_spawn_shopper(index % 2 == 0)
+	_add_event(title, desc, "info")
+	_refresh_ui()
+
+func _build_guidance_panel() -> void:
+	guidance_panel = _panel(Vector2(24, 404), Vector2(330, 150), Color(0.035, 0.055, 0.095, 0.94))
+	ui_root.add_child(guidance_panel)
+
+	var label := _label("OWNER OBJECTIVE", 10, Color("#38bdf8"), true)
+	label.position = Vector2(14, 12)
+	guidance_panel.add_child(label)
+
+	guidance_title = _label("", 15, Color("#ffffff"), true)
+	guidance_title.position = Vector2(14, 34)
+	guidance_title.size = Vector2(302, 24)
+	guidance_panel.add_child(guidance_title)
+
+	guidance_body = _label("", 10, Color("#cbd5e1"))
+	guidance_body.position = Vector2(14, 62)
+	guidance_body.size = Vector2(302, 44)
+	guidance_body.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	guidance_panel.add_child(guidance_body)
+
+	guidance_action = _button("Open", Vector2(14, 112), Vector2(302, 28))
+	guidance_panel.add_child(guidance_action)
+	_refresh_guidance_card()
+
+func _refresh_guidance_card() -> void:
+	if guidance_panel == null:
+		return
+	guidance_panel.visible = session_started
+	if not session_started:
+		_clear_guidance_marker()
+		return
+	if selected_store_idx < 0 or selected_store_idx >= stores.size():
+		return
+
+	var selected := stores[selected_store_idx]
+	var vacant_count := _count_vacant_stores()
+	match first_objective_step:
+		"inspect_traffic":
+			_set_guidance(
+				"Inspect entrance traffic",
+				"Start like an owner: check where guests enter, then decide which empty unit deserves the next lease.",
+				"View Traffic",
+				_complete_traffic_objective
+			)
+			_update_guidance_marker(Vector3(38.0, 0.15, 0.0), "CHECK TRAFFIC")
+		"lease_tenant":
+			if str(selected.get("tenant_id", "")) == "vacant":
+				_set_guidance(
+					"Lease this vacant unit",
+					"Vacancy is dead space. Pick a tenant that complements nearby stores, then watch if shoppers actually visit.",
+					"Browse Tenants",
+					_open_drawer.bind("directory")
+				)
+				_update_guidance_marker(selected.position + Vector3(0, 0.2, 0), "LEASE NEXT")
+			else:
+				_set_guidance(
+					"Find your next vacancy",
+					"Starter Wing has room to grow. Select a gray vacant unit, then lease it into a reason for guests to walk farther.",
+					"Open Directory",
+					_open_drawer.bind("directory")
+				)
+				var vacant_idx := _first_vacant_store_index()
+				_update_guidance_marker(stores[vacant_idx].position + Vector3(0, 0.2, 0), "VACANT UNIT")
+		"observe_shoppers":
+			_set_guidance(
+				"Watch the first visits",
+				"Let shoppers enter, visit stores, and leave. Their purchases and complaints reveal what the mall really needs.",
+				"View Data",
+				_open_drawer.bind("data")
+			)
+			_update_guidance_marker(Vector3(0.0, 0.15, 0.0), "WATCH VISITS")
+		"fix_issue":
+			_set_guidance(
+				"Fix one weak signal",
+				"Improve stock, staffing, cleanliness, or security before the first weekly report locks in the lesson.",
+				"Open Ops",
+				_open_drawer.bind("ops")
+			)
+			_update_guidance_marker(selected.position + Vector3(0, 0.2, 0), "FIX SIGNAL")
+		"weekly_result":
+			_set_guidance(
+				"Reach the first weekly report",
+				"Let a few days run, then read the weekly statement. It should tell you what worked and what is hurting the mall.",
+				"View Goals",
+				_open_drawer.bind("goals")
+			)
+			_update_guidance_marker(Vector3(0.0, 0.15, 0.0), "RUN WEEK 1")
+		_:
+			_set_guidance(
+				"Improve the bottleneck",
+				"Use shopper thoughts, tenant mood, and incidents to choose one fix before expanding again.",
+				"View Data",
+				_open_drawer.bind("data")
+			)
+			_clear_guidance_marker()
+
+	if first_objective_step == "observe_shoppers" and active_shoppers >= 3:
+		_advance_first_objective("fix_issue")
+	elif vacant_count == 0 and first_objective_step == "lease_tenant":
+		_advance_first_objective("observe_shoppers")
+
+func _set_guidance(title: String, body: String, action_text: String, callback: Callable) -> void:
+	if guidance_title.text == title and guidance_body.text == body and guidance_action.text == action_text:
+		return
+	guidance_title.text = title
+	guidance_body.text = body
+	guidance_action.text = action_text
+	for connection in guidance_action.pressed.get_connections():
+		guidance_action.pressed.disconnect(connection["callable"])
+	guidance_action.pressed.connect(callback)
+
+func _complete_traffic_objective() -> void:
+	_open_drawer("data")
+	if first_objective_step == "inspect_traffic":
+		_advance_first_objective("lease_tenant")
+
+func _advance_first_objective(next_step: String) -> void:
+	if first_objective_step == next_step:
+		return
+	first_objective_step = next_step
+	match next_step:
+		"lease_tenant":
+			selected_store_idx = _first_vacant_store_index()
+			_update_store_selection_visuals()
+			_add_event("Objective Updated", "Pick a vacant unit and lease a tenant with strong nearby demand.", "info")
+		"observe_shoppers":
+			_add_event("Objective Updated", "Watch the next shoppers enter and see whether the new tenant earns visits.", "info")
+		"fix_issue":
+			_add_event("Objective Updated", "Make one operational fix before Week 1 closes.", "info")
+		"weekly_result":
+			_add_event("Objective Updated", "Run to the weekly statement and compare sales, costs, and tenant mood.", "info")
+		"freeplay":
+			_add_event("First Week Reviewed", "You have the core loop: lease, observe, fix, and expand.", "success")
+	_refresh_guidance_card()
+
+func _update_guidance_marker(world_pos: Vector3, text: String) -> void:
+	if guidance_marker == null:
+		guidance_marker = Node3D.new()
+		guidance_marker.name = "GuidanceMarker"
+		add_child(guidance_marker)
+		_cylinder("MarkerPad", Vector3.ZERO, 0.9, 0.08, Color(0.22, 0.75, 1.0, 0.45), 0.2, 0.25, guidance_marker, true)
+		var label := Label3D.new()
+		label.name = "MarkerLabel"
+		label.font_size = 30
+		label.outline_size = 8
+		label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+		label.modulate = Color("#e0f2fe")
+		label.position = Vector3(0, 1.4, 0)
+		guidance_marker.add_child(label)
+	guidance_marker.visible = true
+	guidance_marker.position = world_pos
+	var marker_label := guidance_marker.get_node_or_null("MarkerLabel") as Label3D
+	if marker_label != null:
+		marker_label.text = text
+
+func _clear_guidance_marker() -> void:
+	if guidance_marker != null:
+		guidance_marker.visible = false
 
 func _open_drawer(drawer_id: String) -> void:
 	current_drawer = drawer_id
@@ -2154,6 +2696,12 @@ func _render_data_drawer() -> void:
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	drawer_content.add_child(hint)
 
+	var entrance_lbl := _label("ENTRANCES: %s" % _entrance_traffic_summary(), 9, Color("#cbd5e1"))
+	entrance_lbl.position = Vector2(0, 132)
+	entrance_lbl.size = Vector2(346, 28)
+	entrance_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	drawer_content.add_child(entrance_lbl)
+
 	var modes := [
 		{"id": "none", "label": "None"},
 		{"id": "traffic", "label": "Traffic"},
@@ -2162,14 +2710,14 @@ func _render_data_drawer() -> void:
 	]
 	for i in modes.size():
 		var mode: Dictionary = modes[i]
-		var btn := _button(str(mode.label), Vector2(i * 86, 128), Vector2(80, 28))
+		var btn := _button(str(mode.label), Vector2(i * 86, 166), Vector2(80, 28))
 		if heatmap_mode == str(mode.id):
 			btn.modulate = Color("#38bdf8")
 		btn.pressed.connect(_set_heatmap_mode.bind(str(mode.id)))
 		drawer_content.add_child(btn)
 
 	var thought_title := _label("LIVE SHOPPER THOUGHTS", 10, Color("#38bdf8"), true)
-	thought_title.position = Vector2(0, 164)
+	thought_title.position = Vector2(0, 202)
 	drawer_content.add_child(thought_title)
 
 	var thought_text := "No shopper thoughts yet. Let the sim run for a few visits."
@@ -2179,14 +2727,14 @@ func _render_data_drawer() -> void:
 			snippets.append("%s: %s" % [str(thought.get("severity", "info")).to_upper(), str(thought.get("text", ""))])
 		thought_text = "\n".join(snippets)
 	var thoughts_lbl := _label(thought_text, 9, Color("#cbd5e1"))
-	thoughts_lbl.position = Vector2(0, 182)
+	thoughts_lbl.position = Vector2(0, 220)
 	thoughts_lbl.size = Vector2(346, 58)
 	thoughts_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	drawer_content.add_child(thoughts_lbl)
 
 	var scroll := ScrollContainer.new()
-	scroll.position = Vector2(0, 248)
-	scroll.size = Vector2(346, 220)
+	scroll.position = Vector2(0, 286)
+	scroll.size = Vector2(346, 182)
 	drawer_content.add_child(scroll)
 
 	var vbox := VBoxContainer.new()
@@ -2398,7 +2946,56 @@ func _vector_from_save(value) -> Vector3:
 		return Vector3(float(value.get("x", 0.0)), float(value.get("y", 0.0)), float(value.get("z", 0.0)))
 	return Vector3.ZERO
 
-func _save_game() -> void:
+func _active_save_path() -> String:
+	return "%s%d.json" % [SAVE_SLOT_PREFIX, active_save_slot]
+
+func _backup_save_path(slot_id := -1) -> String:
+	if slot_id < 1:
+		slot_id = active_save_slot
+	return "%s%d.bak.json" % [SAVE_SLOT_PREFIX, slot_id]
+
+func _slot_save_path(slot_id: int) -> String:
+	return "%s%d.json" % [SAVE_SLOT_PREFIX, slot_id]
+
+func _has_any_save() -> bool:
+	if FileAccess.file_exists(SAVE_PATH):
+		return true
+	for slot_id in range(1, 4):
+		if FileAccess.file_exists(_slot_save_path(slot_id)):
+			return true
+	return false
+
+func _resolve_load_path() -> String:
+	var active_path := _active_save_path()
+	if FileAccess.file_exists(active_path):
+		return active_path
+	for slot_id in range(1, 4):
+		var candidate := _slot_save_path(slot_id)
+		if FileAccess.file_exists(candidate):
+			active_save_slot = slot_id
+			return candidate
+	if FileAccess.file_exists(SAVE_PATH):
+		active_save_slot = 1
+		return SAVE_PATH
+	return ""
+
+func _write_backup_for_active_slot() -> void:
+	var path := _active_save_path()
+	if not FileAccess.file_exists(path):
+		return
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return
+	var existing := file.get_as_text()
+	var backup := FileAccess.open(_backup_save_path(), FileAccess.WRITE)
+	if backup != null:
+		backup.store_string(existing)
+
+func _autosave_game() -> void:
+	if autosave_enabled:
+		_save_game(true)
+
+func _save_game(quiet := false) -> void:
 	var store_state: Array[Dictionary] = []
 	for s in stores:
 		store_state.append({
@@ -2432,23 +3029,34 @@ func _save_game() -> void:
 		"prestige_tier": prestige_tier,
 		"tutorial_seen": tutorial_seen,
 		"mobile_shopper_budget": mobile_shopper_budget,
+		"active_save_slot": active_save_slot,
+		"selected_scenario_index": selected_scenario_index,
+		"autosave_enabled": autosave_enabled,
+		"first_objective_step": first_objective_step,
 		"tycoon_metrics": tycoon_metrics
 	}
 
-	var file := FileAccess.open("user://aurora_save.json", FileAccess.WRITE)
+	_write_backup_for_active_slot()
+	var file := FileAccess.open(_active_save_path(), FileAccess.WRITE)
 	if file != null:
 		file.store_string(JSON.stringify(payload))
-		_add_event("Game Saved", "Mall state saved successfully on device.", "success")
-		sound_mgr.play_place()
+		if not quiet:
+			_add_event("Game Saved", "Mall state saved successfully to Slot %d." % active_save_slot, "success")
+			sound_mgr.play_place()
 
-func _load_game() -> void:
-	if not FileAccess.file_exists("user://aurora_save.json"): return
-	var file := FileAccess.open("user://aurora_save.json", FileAccess.READ)
-	if file == null: return
+func _load_game() -> bool:
+	var path := _resolve_load_path()
+	if path == "":
+		return false
+	var file := FileAccess.open(path, FileAccess.READ)
+	if file == null:
+		return false
 	var payload = JSON.parse_string(file.get_as_text())
-	if not payload is Dictionary: return
+	if not payload is Dictionary:
+		return false
 	var save_version := int(payload.get("version", 0))
-	if save_version < 1 or save_version > TycoonEconomy.SAVE_VERSION: return
+	if save_version < 1 or save_version > TycoonEconomy.SAVE_VERSION:
+		return false
 
 	cash = int(payload.get("cash", cash))
 	week = int(payload.get("week", week))
@@ -2518,8 +3126,13 @@ func _load_game() -> void:
 	if payload.get("tutorial_seen", {}) is Dictionary:
 		tutorial_seen = payload.get("tutorial_seen", {})
 	mobile_shopper_budget = int(payload.get("mobile_shopper_budget", mobile_shopper_budget))
+	selected_scenario_index = int(payload.get("selected_scenario_index", selected_scenario_index))
+	autosave_enabled = bool(payload.get("autosave_enabled", autosave_enabled))
+	first_objective_step = str(payload.get("first_objective_step", "freeplay"))
 	if payload.get("tycoon_metrics", {}) is Dictionary:
 		tycoon_metrics = payload.get("tycoon_metrics", {})
+	_ensure_store_economy_state()
+	return true
 
 # ==============================================================================
 # HELPERS & CATALOG LOADERS
@@ -2546,6 +3159,16 @@ func _find_amenity_by_type(a_type: String) -> Dictionary:
 		if str(a.get("type", "")) == a_type:
 			return a
 	return {}
+
+func _entrance_traffic_summary() -> String:
+	var lines: Array[String] = []
+	for entry in entrances.values():
+		lines.append("%s %d in/%d out" % [
+			str(entry.get("name", "Entrance")).replace(" Atrium Portal", ""),
+			int(entry.get("entered", 0)),
+			int(entry.get("exited", 0))
+		])
+	return " · ".join(lines) if lines.size() > 0 else "No entrances online"
 
 func _economy_profile_for_tenant(tenant: Dictionary) -> Dictionary:
 	var profiles: Dictionary = catalog_data.get("economy_profiles", {})

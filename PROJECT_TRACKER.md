@@ -1,112 +1,63 @@
-# Aurora Mall Tycoon — Project Tracker & Architecture Blueprint
+# Aurora Mall Tycoon — Project Tracker
 
-This document tracks the end-to-end migration, architecture, and feature evolution of **Aurora Mall Tycoon** as it transitions from the 2D web prototype (`src/`) into a native, high-quality 3D management simulation game built with **Godot 4.7+** (`godot/`) targeting iOS and desktop platforms.
+This is the current development tracker for the native **Godot 4.7+** version of Aurora Mall Tycoon. The old web prototype and migration history are no longer tracked here; this file should stay focused on the playable game we are building now.
 
-Future AI agents and developers should read and update this file as new features and iterations are implemented.
+Future AI agents and developers should read and update this file before implementing.
 
 ### Resumable AI Development Protocol
 
 This project is expected to evolve over many Codex sessions and quota windows. Every AI/developer session should follow this protocol before implementing:
 
-1. Read this tracker first, especially Sections 5, 6, and 8.
+1. Read this tracker first, especially Sections 3, 4, and 6.
 2. Check `git status --short --branch` and avoid overwriting uncommitted work.
 3. Pick the first incomplete task from the **Active Multi-Day Implementation Plan** unless the user gives a newer priority.
 4. Implement one coherent vertical slice at a time: data model, simulation behavior, UI affordance, save/load, and visual feedback where applicable.
 5. Before stopping, update this tracker with completed tasks, current branch/commit if committed, known partial work, and the recommended next task.
-6. Verify in proportion to the change. For Godot work, at minimum run a headless parse/editor quit when possible:
+6. Verify in proportion to the change. For Godot work, at minimum run a headless launch with an explicit log file, for example:
    ```bash
-   /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --editor --quit
+   /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --log-file /private/tmp/aurora-alpha.log --quit-after 3
    ```
-7. Keep the native Godot project as the primary game. The React/Vite prototype remains a reference for product ideas and parity checks.
+7. Keep the native Godot project as the primary game. Do not add new work to the retired web prototype unless the user explicitly asks.
 
 ---
 
-## 1. Project Vision & Targets
+## 1. Product Vision
 
-- **Platform Target**: iOS (iPhone & iPad with touch/gesture controls, notch/safe-area support) and macOS/Desktop.
-- **Engine / Renderer**: Godot 4.7+ utilizing the **GL Compatibility** renderer for maximum mobile performance and cross-platform compatibility.
-- **Aesthetic**: High-end modern commercial architecture, sleek glassmorphism UI, warm ambient interior lighting, neon storefront accents, PBR materials, and lively stylized 3D shoppers with emotive visual feedback.
-- **Core Loop**:
-  1. **Architect & Design**: Zone commercial lots, lay custom concourse flooring (Carrara marble, terrazzo, dark granite, chevron wood), install glass railings, and place concourse amenities (dancing fountains, palm planters, coffee carts, ATM kiosks).
-  2. **Curate & Lease**: Attract luxury fashion houses, gourmet dining, artisan cafes, IMAX cinemas, and retro cyber arcades from a rich catalog.
-  3. **Manage & Optimize**: Set pricing strategies (Value/Market/Premium), hire service teams, restock inventory, launch local marketing blitzes, renovate storefront facades, and upgrade stores through Tier 1 → Tier 2 → Tier 3.
-  4. **Concourse & Operations**: Dispatch sanitation buffing crews, deploy security patrols, manage weekly accounting statements, and respond to daily critic reviews and festivals.
+Aurora Mall Tycoon should become a deep, readable, mobile-friendly mall management game where players design a mall, recruit tenants, watch shoppers use the space, fix operational bottlenecks, and grow from an incomplete property into a destination.
+
+- **Primary target**: iOS first, then macOS/Desktop.
+- **Engine**: Godot 4.7+ with GL Compatibility renderer.
+- **Player fantasy**: Own the property, shape the layout, curate the tenant mix, and solve visible problems created by real shopper and staff behavior.
+- **Quality bar**: A new player should understand the first session without developer explanation, and an experienced player should see enough depth to want another run.
 
 ---
 
-## 2. Feature Parity & Migration Status Matrix
-
-| Feature Domain | HTML Prototype (`src/`) | Godot 3D Native (`godot/`) | Status | Notes |
-| :--- | :--- | :--- | :--- | :--- |
-| **Mall Blueprints & Templates** | 5 templates (Aurora Grand, Cedar Grove, Lakeside, Metropolitan, Blank) | Aurora Grand (Expanded JSON) + Template loader | 🟢 Complete | Dynamic multi-template loading & custom zoning |
-| **Tenant Catalog (15+ Stores)** | 5 Categories (Luxury, Food, Fashion, Entertainment, Specialty) | Full JSON catalog in `catalogs.json` with 15+ stores & tiers | 🟢 Complete | Full metadata, 3-tier upgrade trees, signature items |
-| **Concourse Amenities (9 Items)** | Fountains, Palms, Benches, ATM, Boba, Bistro, Restrooms, Info | 3D Fountains, Palms, Benches, Kiosks, Restrooms | 🟢 Complete | 3D models with water effects, shopper interaction |
-| **Shopper State Machine** | 12 States (Queueing, Ordering, Dining, Cinema, Rest, Amenities) | Entering, Concourse, Queuing, Browsing, Dining, Exiting | 🟢 Complete | Full multi-state simulation with 3D bubbles & floaters |
-| **Deep Store Simulations** | Cinema 4-phase showtimes, Bakery ovens, Keynote stages, Arcade jackpots | Cinema lifecycle, Bakery batches, Tech demo cycles | 🟢 Complete | Dynamic timers, visual glows, audio feedback |
-| **Store Operations & Management** | Pricing, Staffing, Restocking, Promotions, Facade Styles, Upgrades, Eviction | Pricing, Staffing, Restocking, Promotions, Facades, Upgrades | 🟢 Complete | Full inspector UI drawer & 3D visual upgrades |
-| **Mall Operations & Health** | Cleanliness, Security, Reputation, Weekly Accounting, Daily Events | Cleanliness, Security, Reputation, Accounting, Events | 🟢 Complete | Dedicated Operations HUD drawer & notifications |
-| **Audio Engine** | Web Audio API procedural synthesis (6 sound types) | Godot `AudioStreamGenerator` procedural audio system | 🟢 Complete | Native self-contained sound effects & ambient sound |
-| **iOS Camera & Touch Controls** | Mouse pan/zoom, basic gestures | 1-finger pan, 2-finger pinch zoom, 2-finger yaw orbit, tap-to-select | 🟢 Complete | Native Godot touch & screen drag event integration |
-| **Save / Load System** | `localStorage` JSON document | `user://aurora_save.json` serialization | 🟢 Complete | Full state, custom amenities, zoned lots, upgrades |
-
----
-
-## 3. Architecture & File Structure
+## 2. Current Native Project Map
 
 ```
 mall-tycoon/
-├── PROJECT_TRACKER.md              # THIS FILE — Master progress & technical tracker
-├── README.md                       # High-level repository overview
-├── godot/                          # Native Godot 3D Game Project
-│   ├── project.godot               # Godot project configuration (GL Compatibility, input maps)
-│   ├── export_presets.cfg          # iOS / macOS export configuration
-│   ├── data/                       # Data-driven JSON catalogs & blueprints
-│   │   ├── catalogs.json           # All tenant, amenity & template definitions
-│   │   ├── aurora_grand.json       # Flagship showcase mall blueprint
-│   │   └── templates/              # Additional mall starter templates
-│   ├── scenes/
-│   │   └── main.tscn               # Master 3D scene (WorldEnvironment, Sun, CameraRig, UI CanvasLayer)
-│   └── scripts/
-│       ├── main.gd                 # Master controller: 3D generation, UI, input & loop orchestration
-│       ├── shopper.gd              # Stylized 3D shopper agent with state machine & visual feedback
-│       └── sound_manager.gd        # Procedural audio generator & sound effects synthesizer
-└── src/                            # Original React/Vite 2D Prototype (preserved as reference)
-    ├── game/                       # Core simulation engine, types & constants
-    └── components/                 # UI components, canvas renderer & sidebars
+├── PROJECT_TRACKER.md
+├── README.md
+└── godot/
+    ├── project.godot
+    ├── export_presets.cfg
+    ├── data/
+    │   ├── catalogs.json
+    │   └── aurora_grand.json
+    ├── scenes/
+    │   └── main.tscn
+    └── scripts/
+        ├── main.gd
+        ├── shopper.gd
+        ├── sound_manager.gd
+        └── tycoon_economy.gd
 ```
 
----
-
-## 4. Technical Design Specifications
-
-### A. 3D Architectural Generation & Materials
-- **Concourse Floors**: Generated as segmented 3D slabs with PBR materials (roughness 0.18-0.3, metallic 0.1-0.24, normal/albedo variations for marble, terrazzo, wood, and outdoor stone).
-- **Storefronts**: Dynamic 3D structures featuring glass curtain walls (`transparency = alpha`, high specular), illuminated category signage (`Label3D` with billboard mode), and interchangeable facade headers (Gallery, Warm Wood, Neon Glow).
-- **Store Interiors**: Context-aware procedural furnishing:
-  - *Food / Dining*: Service counters, glass display cases, dining tables with stools/booths.
-  - *Entertainment / Cinema*: Tiered stadium seating with velvet recliners, curved IMAX screen with animated emission glow.
-  - *Technology*: Demonstration benches with glowing smart devices and OLED video walls.
-  - *Fashion / Luxury*: Merchandising racks, mannequins, gold trim, and private fitting suites.
-  - *Arcade*: Glowing neon arcade cabinets and prize counters.
-
-### B. Stylized 3D Shoppers & Visual Feedback
-- **Character Meshes**: Stylized low-poly avatars with color-blocked clothing, expressive skin/hair variations, and accessories (shopping bags, iced drinks, popcorn tubs).
-- **Floating 3D FX**:
-  - Floating coin/cash text (e.g. `+$72`) spawned in 3D world space, floating upwards with alpha fade.
-  - 3D Billboard Thought Bubbles: Popups displaying purchase satisfaction (❤️), film reels (🎬), coffee (☕), boba (🧋), or tech (◈).
-
-### C. Procedural Sound System
-- Generates pure mathematical audio waveforms via `AudioStreamWAV` in GDScript:
-  - `play_cash()`: Fast ascending dual-tone chime (1318Hz -> 1661Hz).
-  - `play_place()`: Harmonious chord (440Hz -> 587Hz -> 880Hz).
-  - `play_upgrade()`: Majestic 4-note fanfare (523Hz -> 659Hz -> 784Hz -> 1046Hz).
-  - `play_doorbell()`: Two-tone chime (880Hz -> 698Hz).
-  - `play_error()`: Low sawtooth buzz (220Hz -> 174Hz).
-  - `play_arcade()`: Fast 3-tone retro square wave blip.
+Current implementation is still concentrated in `godot/scripts/main.gd`. Future milestone work should gradually extract systems when it reduces risk: launch/save flow, UI controllers, build commands, store modules, staff jobs, and scenario progression.
 
 ---
 
-## 5. Current Project: Player-Ready Alpha
+## 3. Current Project: Player-Ready Alpha
 
 The owner priority is no longer “add more systems.” It is to turn the current working simulation into a game a new player can understand, enjoy, fail at, recover in, and want to replay. The Living Mall Realism work remains important, but it is now sequenced behind the core player journey and one proven deep-store vertical slice.
 
@@ -152,12 +103,13 @@ Every feature must strengthen at least one verb in that promise: **design, recru
 
 ---
 
-## 6. Active Multi-Day Implementation Plan
+## 4. Active Multi-Day Implementation Plan
 
 This is the only active plan. Work from the first incomplete phase unless the user sets a newer priority. Each phase must preserve existing features, update save migrations, add proportional automated checks, and finish with a Godot preview plus a short owner playtest note.
 
 ### Phase A: New Game, First Ten Minutes & UI Triage
 
+- **2026-08-17 progress**: Added the Phase A launch shell with New Game, Continue, scenario selection, settings toggles, and save-slot selection; stopped unconditional save auto-load; added slot saves with backup files and weekly autosave; added a clean Starter Wing new-game state with curated open stores plus visible vacant units; fixed Continue visual rebuilding after save load; added an event-driven first objective chain with an owner card and a world-space guidance marker; and made the top/drawer/bottom HUD reflow from the current viewport with shorter mode labels. Next Phase A work should finish a proper Scenarios/Settings screen, save-slot management UI, richer objective completion UI, skip/replay tutorial controls, and deeper mobile safe-area polish.
 - [ ] Add a launch flow with **New Game**, **Continue**, **Scenarios**, and **Settings**. Never auto-load a save without player intent.
 - [ ] Add versioned save slots, an explicit fresh-start path, autosave, and a recoverable backup save.
 - [ ] Start New Game paused in a healthy small mall with a controlled budget, a few open stores, clear vacant lots, and no immediate failure cascade.
@@ -265,7 +217,7 @@ This is the only active plan. Work from the first incomplete phase unless the us
 
 ---
 
-## 7. Design Pillars For Future Decisions
+## 5. Design Pillars For Future Decisions
 
 1. **The player builds the story.** The mall should begin incomplete and become visibly personal through layout, tenant, and operating choices.
 2. **Watchability is the feedback system.** Important numbers must have a visible cause in shoppers, staff, stores, queues, and spaces.
@@ -287,13 +239,13 @@ This is the only active plan. Work from the first incomplete phase unless the us
 
 ---
 
-## 8. Session Handoff Template
+## 6. Session Handoff
 
 - **Last active branch**: `main`
-- **Last known status**: Owner playtest completed on the native Godot build. The engine is viable, but the project is not yet a player-ready game. The active plan has been reordered around first-session comprehension, mall creation, meaningful economy feedback, one deep store vertical slice, and only then the broader realism/content pass.
-- **Most recently completed phase/task**: Player-ready alpha product review and roadmap rewrite.
-- **Known partial work**: Single auto-loaded save, no New Game shell, passive tutorial/event toasts, fixed-resolution dense UI, contradictory economy signals, generic store controls, amenities-only architect mode, auto-resolving incidents, generic characters, and scenario data without campaign progression.
-- **Recommended next task**: Start Phase A with the launch flow and clean New Game path. Preserve the current save as Continue, add a fresh small-mall start, then implement the first guided objective chain before adding new character art.
+- **Last known status**: Phase A is partially implemented in the native Godot build. The game now has player-intent launch flow, New Game/Continue, scenario selection, settings toggles, save-slot selection, slot backups, weekly autosave, a clean Starter Wing start, objective guidance, a world-space guidance marker, entrance traffic visibility, and initial responsive HUD reflow.
+- **Most recently completed phase/task**: Phase A implementation slice: launch flow, starter new-game state, save slots/backups, objective chain, and initial HUD triage.
+- **Known partial work**: Scenarios/settings are present in the launch shell but not yet full subviews; save slots lack rename/delete/restore UI; objective completion lacks a polished reward panel; tutorial skip/replay controls are not built; HUD safe-area behavior needs iPhone/iPad pass; economy contradictions, generic stores, amenities-only architect mode, auto-resolving incidents, and generic characters remain for later phases.
+- **Recommended next task**: Finish the remaining Phase A polish: proper Scenarios/Settings subviews, save-slot management UI, richer objective completion UI, skip/replay tutorial controls, and mobile safe-area polish.
 - **Verification command to run next**:
   ```bash
   /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --log-file /private/tmp/aurora-alpha-phase-a.log --editor --quit
@@ -301,7 +253,7 @@ This is the only active plan. Work from the first incomplete phase unless the us
 
 ---
 
-## 9. Running the Game
+## 7. Running the Game
 
 To launch the native Godot 3D game locally:
 ```bash
