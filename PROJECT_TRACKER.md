@@ -340,19 +340,26 @@ Agents must take the first incomplete milestone whose dependencies are complete.
 - **Verification:** `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_rasterizer_graph.gd` passed, including the 250-segment warm rebuild budget.
 - **Next:** B2-05.
 
-###### B2-05 — Layout Validator and Command Preflight `[ ]`
+###### B2-05 — Layout Validator and Command Preflight `[complete 2026-08-17]`
 
 - **Depends on:** B2-04.
 - **Scope:** implement the twelve invariants, structured error codes, affected-object lists, warnings vs blockers, and before/after state preflight.
 - **Acceptance:** every invalid fixture is rejected for the expected reason; valid commands return cost/area/change summaries; no failed command mutates layout or cash; demolition detects orphaned stores/entrances.
 - **Required error examples:** `OUTSIDE_PARCEL`, `OVERLAPS_LOT`, `NO_START_CONNECTION`, `DOOR_NOT_ON_FRONTAGE`, `ORPHANS_STORE`, `DUPLICATE_ID`, `CURVE_TOO_TIGHT`.
+- **Completed evidence:** added pure `layout_validator.gd` with whole-layout checks and command preflight for parcel bounds, lot overlap, hallway start connectivity, door/frontage/public-space checks, duplicate IDs, tight curves, and demolition orphan detection. Preflight returns affected IDs, cost/area summaries, issue lists, and before/after hashes proving failed commands do not mutate state.
+- **Verification:** `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_validator.gd` passed.
+- **Next:** B2-06.
 
-###### B2-06 — Seamless Corridor Renderer `[ ]`
+###### B2-06 — Seamless Corridor Renderer `[complete 2026-08-17]`
 
 - **Depends on:** B2-04 and B2-05.
 - **Scope:** incremental floor, edge trim, corner/junction caps, walls/railings where exposed, material continuity, preview material, and change-set rebuilding.
 - **Acceptance:** straight runs, L corners, T junctions, courts, and base-to-player-built joins show no daylight cracks or z-fighting at phone camera distances; renderer never changes topology; deleting one segment rebuilds only affected neighbors.
 - **Mobile budget:** one draw-surface/material strategy per theme where practical; avoid one heavy node/material per cell.
+- **Completed evidence:** added standalone `layout_renderer.gd`, preview scene `layout_renderer_preview.tscn`, and renderer tests. The renderer consumes B2 state/raster output, draws floor cells, exposed edge trim, inlays, junction caps, court material variation, and preview material without mutating layout state.
+- **Preview:** `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --path godot --scene res://scenes/layout_renderer_preview.tscn --resolution 1280x720` launched successfully for visual inspection.
+- **Verification:** `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_renderer.gd` passed.
+- **Next:** B2-07.
 
 ###### B2-07 — Mobile Hallway Gesture Controller and Bottom Sheet `[ ]`
 
@@ -539,16 +546,18 @@ If a milestone cannot finish in one quota window, split only by its listed deliv
 ## 6. Session Handoff
 
 - **Last active branch**: `main`
-- **Last known status**: Phase A remains partially implemented and playable. Owner priority has moved to Project B2, Mall Layout Builder 2.0. B2 now has completed schema fixtures, pure authoritative layout state, coordinate conversion, state hashing, standalone v3 save codec, conservative legacy v2 migration tests, and an orthogonal corridor rasterizer/graph. The command validator, renderer, mobile builder UI, navigation replacement, and Cedar Grove vertical slice have not started. The current 6×6 hallway builder and Aurora Starter Promenade remain a prototype compatibility path, not an architecture to extend.
-- **Most recently completed phase/task**: B2-04 — added pure rasterization and graph connectivity for orthogonal hallways/courts, including disconnected-run, T-junction, deterministic-overlap, and 250-segment performance tests.
+- **Last known status**: Phase A remains partially implemented and playable. Owner priority has moved to Project B2, Mall Layout Builder 2.0. B2 now has completed schema fixtures, pure authoritative layout state, coordinate conversion, state hashing, standalone v3 save codec, conservative legacy v2 migration tests, orthogonal corridor rasterizer/graph, layout validator/command preflight, and a standalone corridor renderer preview. The mobile builder UI, navigation replacement, and Cedar Grove vertical slice have not started. The current 6×6 hallway builder and Aurora Starter Promenade remain a prototype compatibility path, not an architecture to extend.
+- **Most recently completed phase/task**: B2-06 — added standalone layout renderer, renderer tests, and a dedicated Godot preview scene without wiring it into the live game scene.
 - **Known partial work**: The prototype still permits “near enough” rectangle connections, infers store frontage from map position, uses isolated tap-to-place tiles, and lacks authoritative graph/nav validation. These are documented replacement targets. Unrelated Phase A safe-area/HUD polish remains incomplete but is not the next owner priority.
-- **Recommended next task**: B2-05 — implement layout validator and command preflight for the twelve B2 invariants, structured blocker/warning error codes, affected-object lists, and no-mutation failed command behavior.
+- **Recommended next task**: B2-07 — implement the mobile hallway gesture controller and safe-area bottom sheet, using debug/preview rendering until deeper game integration is ready.
 - **Verification command to run next**:
   ```bash
   /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_schema.gd
   /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_state.gd
   /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_save_codec.gd
   /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_rasterizer_graph.gd
+  /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_validator.gd
+  /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_renderer.gd
   ```
 
 B2 milestone: B2-01
@@ -594,6 +603,28 @@ Touch resolutions tested: none; no touch UI changed.
 Known limitations (facts, not future ideas): only orthogonal centerline corridors and convex/simple courts are supported; 45-degree/curve handling, full invariant validation, command preflight, and Godot navigation surfaces are not implemented.
 First incomplete acceptance item: B2-05 layout validator and command preflight has not started.
 Recommended next task ID: B2-05
+
+B2 milestone: B2-05
+Status: complete
+Files changed: `godot/scripts/layout/layout_validator.gd`, `godot/tests/layout/test_layout_validator.gd`, `PROJECT_TRACKER.md`
+Schema/save version impact: no schema or production save changes; validator consumes B2-02 state, B2-03 codec outputs, and B2-04 graph/raster results.
+Tests added and exact command: `godot/tests/layout/test_layout_validator.gd`; run with `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_validator.gd`
+Godot preview command and result: not launched; B2-05 is non-visual validation infrastructure with no gameplay scene change.
+Touch resolutions tested: none; no touch UI changed.
+Known limitations (facts, not future ideas): validator is still pre-integration and does not charge/refund economy, update production saves, expose UI repair prompts, or enforce every final rendering/navigation invariant; it establishes the command-preflight boundary for those later steps.
+First incomplete acceptance item: B2-06 seamless corridor renderer has not started.
+Recommended next task ID: B2-06
+
+B2 milestone: B2-06
+Status: complete
+Files changed: `godot/scripts/layout/layout_renderer.gd`, `godot/scripts/layout/preview_layout_renderer.gd`, `godot/scenes/layout_renderer_preview.tscn`, `godot/tests/layout/test_layout_renderer.gd`, `PROJECT_TRACKER.md`
+Schema/save version impact: no schema or production save changes; renderer consumes current B2 state/raster data only.
+Tests added and exact command: `godot/tests/layout/test_layout_renderer.gd`; run with `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --headless --path godot --script res://tests/layout/test_layout_renderer.gd`
+Godot preview command and result: `/private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --path godot --scene res://scenes/layout_renderer_preview.tscn --resolution 1280x720` launched successfully and remains available for visual inspection.
+Touch resolutions tested: none; no touch UI changed.
+Known limitations (facts, not future ideas): renderer uses one mesh node per floor/trim/edge element for clarity, so later B2 performance work should batch meshes before large production malls; live game scene still uses the legacy renderer.
+First incomplete acceptance item: B2-07 mobile hallway gesture controller and bottom sheet has not started.
+Recommended next task ID: B2-07
 
 ---
 
