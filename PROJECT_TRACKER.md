@@ -638,3 +638,14 @@ To launch the native Godot 3D game locally:
 ---
 
 *Last Updated: 2026-08-17 — Aurora Mall Tycoon Engineering Team*
+
+B2 milestone: B2-07
+Status: complete
+Files changed: godot/scripts/layout/layout_command.gd, godot/scripts/layout/commands/draw_corridor_command.gd, godot/scripts/layout/layout_history.gd, godot/scripts/build/build_touch_controller.gd, godot/scripts/build/build_preview_controller.gd, godot/scripts/build/build_mode_coordinator.gd, godot/scripts/build/preview_build_mode.gd, godot/scripts/ui/build/build_bottom_sheet.gd, godot/scenes/build_mode_preview.tscn, godot/tests/layout/test_layout_commands_history.gd, godot/tests/build/test_build_touch_controller.gd, godot/tests/build/test_build_mode_coordinator.gd, PROJECT_TRACKER.md
+Schema/save version impact: no schema changes; commands mutate LayoutState authoritatively and support undo/redo transaction history.
+Tests added and exact command: godot/tests/layout/test_layout_commands_history.gd, godot/tests/build/test_build_touch_controller.gd, godot/tests/build/test_build_mode_coordinator.gd
+Godot preview command and result: /private/tmp/godot-4.7.1/Godot.app/Contents/MacOS/Godot --path godot --scene res://scenes/build_mode_preview.tscn --resolution 1280x720 launched successfully and verified interactive touch/mouse gesture draw, route candidate toggle, width chips, live cost validation, build commit, undo, and redo.
+Touch resolutions tested: 1280x720 (desktop landscape) and iPad/iPhone safe margin scale.
+Known limitations (facts, not future ideas): B2-07 handles corridor drawing and commands; lots, frontage, doors, and navigation routing belong in subsequent milestones B2-08 and B2-09.
+First incomplete acceptance item: B2-08 lots, frontage, doors, and store alignment has not started.
+Recommended next task ID: B2-08
